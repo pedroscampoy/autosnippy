@@ -56,19 +56,43 @@ DIM = '\033[2m'
 
 
 
-def run_snippy(r1, r2, reference, output_dir, sample, threads=16, min_quality=20, min_frequency_threshold=0.8, min_depth=20):
+def run_snippy(r1, r2, reference, output_dir, sample, threads=16, minqual=20, minfrac=0.1, mincov=1):
     """
     snippy --cpus 16 --outdir mysnps --ref Listeria.gbk --R1 FDA_R1.fastq.gz --R2 FDA_R2.fastq.gz
     """
     prefix = os.path.join(output_dir, sample)
 
-    cmd = ["snippy", "--cpus", str(threads), "--outdir", prefix, "--ref", reference, "--R1", r1, "--R2", r2]
-
+    cmd = ["snippy", "--cpus", str(threads), "--outdir", prefix, "--minqual", str(minqual), "--mincov", str(mincov), "--minfrac", str(minfrac), "--ref", reference, "--R1", r1, "--R2", r2]
 
     execute_subprocess(cmd)
 
 
+def extract_indels(input_vcf):
+    input_vcf = os.path.abspath(input_vcf)
+    vcf_dir = ('/').join(input_vcf.split('/')[0:-1])
+    output_indel_vcf = os.path.join(vcf_dir, 'snps.indel.vcf')
+    with open(output_indel_vcf, 'w+') as fout:
+        with open(input_vcf, 'r') as f:
+            for line in f:
+                if "TYPE=ins" in line or "TYPE=del" in line:
+                    fout.write(line)
 
+
+def merge_vcf(snp_vcf, indel_vcf):
+    snp_vcf = os.path.abspath(snp_vcf)
+    indel_vcf = os.path.abspath(indel_vcf)
+
+    vcf_dir = ('/').join(snp_vcf.split('/')[0:-1])
+
+    output_complete_vcf = os.path.join(vcf_dir, 'snps.all.vcf')
+    with open(output_complete_vcf, 'w+') as fout:
+        with open(snp_vcf, 'r') as f1:
+            for line in f1:
+                fout.write(line)
+        with open(indel_vcf, 'r') as f2:
+            for line in f2:
+                if not line.startswith("#"):
+                    fout.write(line)
 
 
 

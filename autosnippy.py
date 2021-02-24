@@ -17,9 +17,8 @@ from misc import check_file_exists, extract_sample, check_create_dir, execute_su
     extract_read_list, file_to_list, obtain_group_cov_stats, clean_unwanted_files, \
     check_reanalysis, vcf_stats, remove_low_quality, obtain_overal_stats
 from preprocessing import fastqc_quality, fastp_trimming, format_html_image
-# from pe_mapper import bwa_mapping, sam_to_index_bam
-from bam_variants import run_snippy
-# from vcf_process import filter_tsv_variants
+from bam_variants import run_snippy, extract_indels, merge_vcf
+from vcf_process import filter_tsv_variants, vcf_to_ivar_tsv
 # from annotation import annotate_snpeff, annotate_pangolin, user_annotation, user_annotation_aa, annotation_to_html, \
 #     report_samples_html
 # from compare_snp import ddtb_add, ddtb_compare, ddbb_create_intermediate, revised_df, remove_position_range
@@ -266,8 +265,42 @@ def main():
                     logger.info(YELLOW + DIM + output_vcf + " EXIST\nOmmiting Variant calling in  " + sample + END_FORMATTING)
                 else:
                     logger.info(GREEN + "Calling variants with snippy " + sample + END_FORMATTING)
-                    run_snippy(r1_file, r2_file, reference, out_variant_dir, sample, threads=args.threads, min_quality=20, min_frequency_threshold=0.8, min_depth=20)
+                    run_snippy(r1_file, r2_file, reference, out_variant_dir, sample, threads=args.threads, minqual=20, minfrac=0.1, mincov=1)
 
+                #VARIANT FORMAT COMBINATION (REMOVE COMPLEX) ########
+                #####################################################
+                out_variant_indel_sample = os.path.join(sample_variant_dir, "snps.indel.vcf")
+                out_variant_all_sample = os.path.join(sample_variant_dir, "snps.all.vcf")
+                
+
+                if os.path.isfile(out_variant_indel_sample):
+                    logger.info(YELLOW + DIM + out_variant_indel_sample + " EXIST\nOmmiting indel filtering in sample " + sample + END_FORMATTING)
+                else:
+                    logger.info(GREEN + "Filtering INDELS in " + sample + END_FORMATTING)
+                    extract_indels(output_vcf)
+
+                if os.path.isfile(out_variant_all_sample):
+                    logger.info(YELLOW + DIM + out_variant_all_sample + " EXIST\nOmmiting vcf combination in sample " + sample + END_FORMATTING)
+                else:
+                    logger.info(GREEN + "Combining vcf in " + sample + END_FORMATTING)
+                    merge_vcf(output_vcf_sub, out_variant_indel_sample)
+                
+                
+                #VARIANT FORMAT ADAPTATION TO IVAR ##################
+                #####################################################
+                out_variant_tsv_file = os.path.join(sample_variant_dir, 'snps.all.ivar.tsv')
+                
+
+                if os.path.isfile(out_variant_tsv_file):
+                    logger.info(YELLOW + DIM + out_variant_tsv_file + " EXIST\nOmmiting format adaptation for sample " + sample + END_FORMATTING)
+                else:
+                    logger.info(GREEN + "Adapting variants format in sample " + sample + END_FORMATTING)
+                    prior = datetime.datetime.now()
+                    vcf_to_ivar_tsv(out_variant_all_sample, out_variant_tsv_file)
+                    after = datetime.datetime.now()
+                    print(("Done with function in: %s" % (after - prior)))
+                    
+                
 
             #VARIANT FILTERING ##################################
             #####################################################
@@ -291,7 +324,7 @@ def main():
             #     logger.info(YELLOW + DIM + out_ivar_consensus_file + " EXIST\nOmmiting Consensus for  sample " + sample + END_FORMATTING)
             # else:
             #     logger.info(GREEN + "Creating consensus with ivar in sample " + sample + END_FORMATTING)
-            #     #ivar_consensus(output_markdup_trimmed_file, out_consensus_ivar_dir, sample, min_quality=20, min_frequency_threshold=0.8, min_depth=20, uncovered_character='N')
+            #     #ivar_consensus(output_markdup_trimmed_file, out_consensus_ivar_dir, sample, min_quality=20, min_frequency_threshold=0.8, mincov=20, uncovered_character='N')
             #     logger.info(GREEN + "Replacing consensus header in " + sample + END_FORMATTING)
             #     #replace_consensus_header(out_ivar_consensus_file)
 

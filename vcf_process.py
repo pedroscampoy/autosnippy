@@ -15,6 +15,43 @@ list_to_bed, count_lines
 
 logger = logging.getLogger()
 
+
+def import_VCF42_freebayes_to_df(vcf_file, sep='\t'):
+    vcf_file = os.path.abspath(vcf_file)
+
+    headers = []
+    extra_fields = ['TYPE','DP','RO','AO']
+    with open(vcf_file, 'r') as f:
+        next_line = f.readline().strip()
+        while next_line.startswith("#"):
+            next_line = f.readline().strip()
+            if next_line.startswith('#CHROM'):
+                headers = next_line.split('\t')
+    
+    headers = headers[:7] + extra_fields
+
+    df = pd.DataFrame(columns=headers)
+
+    with open(vcf_file, 'r') as f:
+        for line in f:
+            extra_field_list = []
+            if not line.startswith("#"):
+                line_split = line.split(sep)[:8]
+                info = line_split[-1].split(";")
+                for index, field in enumerate(extra_fields):
+                    extra_field_list.append([x.split("=")[-1] for x in info if field in x][0])
+                df.loc[len(df)] = line_split[:7] + extra_field_list
+
+    df.rename(columns={'#CHROM':'REGION','RO':'REF_DP', 'DP':'TOTAL_DP', 'AO':'ALT_DP', 'QUAL':'ALT_QUAL'}, inplace=True)
+
+    df['REF_FREQ'] = df['REF_DP']/df['TOTAL_DP']
+    df['ALT_FREQ'] = df['ALT_DP']/df['TOTAL_DP']
+
+    df = df.sort_values(by=['POS']).reset_index(drop=True)
+
+    return df[['REGION', 'POS', 'ID', 'REF', 'ALT', 'ALT_QUAL', 'FILTER', 'TOTAL_DP', 'TYPE', 'REF_DP', 'ALT_DP', 'REF_FREQ', 'ALT_FREQ']]
+
+
 def filter_tsv_variants(tsv_file, output_filtered, min_frequency=0.8, min_total_depth=20, min_alt_dp=4, is_pass=True, only_snp=True):
     input_file_name = os.path.basename(tsv_file)
     input_file = os.path.abspath(tsv_file)
@@ -256,7 +293,7 @@ def handle_polymorphism_freebayes(df):
         for header in repare_headers:        
             df.loc[index, header] = df.loc[index, header].split(",")[max_index]  #split bases into list and retrieve the base using ps index
 
-def import_VCF42_freebayes_to_df(vcf_file, sep='\t'):
+def import_VCF42_freebayes_to_df_legacy_prov(vcf_file, sep='\t'):
     """
     Script to read vcf 4.2
     - now handle correct allele frequency calculated by summing REF reads + ALT reads instead from DP parameter
@@ -415,6 +452,50 @@ def import_VCF40_lofreq_to_df(vcf_file, sep='\t'):
 
     return df
 
+def import_VCF42_freebayes_to_tsv(vcf_file, sep='\t'):
+    vcf_file = os.path.abspath(vcf_file)
+    tsv_file = (".").join(vcf_file.split(".")[:-1]) + ".tsv"
+
+    headers = []
+    extra_fields = ['TYPE','DP','RO','AO']
+    with open(tsv_file, 'w+') as fout:
+        with open(vcf_file, 'r') as f:
+            next_line = f.readline().strip()
+            while next_line.startswith("#"):
+                next_line = f.readline().strip()
+                if next_line.startswith('#CHROM'):
+                    headers = next_line.split('\t')
+        
+        headers = headers[:7] + extra_fields
+        fout.write(("\t").join(headers) + "\n")
+
+        with open(vcf_file, 'r') as f:
+            for line in f:
+                extra_field_list = []
+                if not line.startswith("#"):
+                    line_split = line.split(sep)[:8]
+                    info = line_split[-1].split(";")
+                    for field in extra_fields:
+                        extra_field_list.append([x.split("=")[-1] for x in info if field in x][0])
+                    output_line = ("\t").join(line_split[:7] + extra_field_list)
+                    fout.write(output_line + "\n")
+
+def import_tsv_freebayes_to_df(tsv_file, sep='\t'):
+    tsv_file = os.path.abspath(tsv_file)
+
+    df = pd.read_csv(tsv_file, sep=sep)
+
+    df.rename(columns={'#CHROM':'REGION','RO':'REF_DP', 'DP':'TOTAL_DP', 'AO':'ALT_DP', 'QUAL':'ALT_QUAL'}, inplace=True)
+
+    df['REF_FREQ'] = df['REF_DP']/df['TOTAL_DP']
+    df['ALT_FREQ'] = df['ALT_DP']/df['TOTAL_DP']
+
+    df = df.sort_values(by=['POS']).reset_index(drop=True)
+
+    return df[['REGION', 'POS', 'ID', 'REF', 'ALT', 'ALT_QUAL', 'FILTER', 'TOTAL_DP', 'TYPE', 'REF_DP', 'ALT_DP', 'REF_FREQ', 'ALT_FREQ']]
+
 def vcf_to_ivar_tsv(input_vcf, output_tsv):
-    df = import_VCF42_freebayes_to_df(input_vcf)
+    input_tsv = (".").join(input_vcf.split(".")[:-1]) + ".tsv"
+    import_VCF42_freebayes_to_tsv(input_vcf)
+    df = import_tsv_freebayes_to_df(input_tsv)
     df.to_csv(output_tsv, sep="\t", index=False)
