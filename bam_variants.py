@@ -94,9 +94,15 @@ def merge_vcf(snp_vcf, indel_vcf):
                 if not line.startswith("#"):
                     fout.write(line)
 
+def create_bamstat(input_bam, output_dir, sample, threads=8):
+    output_file = os.path.join(output_dir, sample + ".bamstats")
+    cmd = "samtools flagstat --threads {} {} > {}".format(str(threads), input_bam, output_file)
+    execute_subprocess(cmd, isShell=True)
 
-
-
+def create_coverage(input_bam, output_dir, sample):
+    output_file = os.path.join(output_dir, sample + ".cov")
+    cmd = "samtools depth -aa {} > {}".format(input_bam, output_file)
+    execute_subprocess(cmd, isShell=True)
 
 
 
@@ -303,40 +309,7 @@ def replace_consensus_header(input_fasta):
         f.write(content)
         f.truncate()
 
-def create_bamstat(input_bam, output_dir, sample, threads=8):
-    output_file = os.path.join(output_dir, sample + ".bamstats")
-    cmd = "samtools flagstat --threads {} {} > {}".format(str(threads), input_bam, output_file)
-    execute_subprocess(cmd, isShell=True)
 
-def create_coverage(input_bam, output_dir, sample):
-    output_file = os.path.join(output_dir, sample + ".cov")
-    cmd = "samtools depth -aa {} > {}".format(input_bam, output_file)
-    execute_subprocess(cmd, isShell=True)
-
-def create_consensus(reference, highfreq_df, coverage_folder, out_folder):
-    df = pd.read_csv(highfreq_df, sep="\t")
-
-    for sample in df.columns[3:]:
-        coverage_folder = os.path.abspath(coverage_folder)
-        cov_file = os.path.join(coverage_folder, sample + ".cov")
-        reflist = list(SeqIO.read(reference, "fasta").seq)
-        
-        dfsample = df[['Position', sample]]
-        for _, row in dfsample.iterrows():
-            if str(row[sample]) == '1':
-                postition_list = row.Position.split("|")
-                ref = postition_list[1]
-                pos = int(postition_list[2])
-                alt = postition_list[3]
-                if reflist[pos - 1] == ref:
-                    reflist[pos - 1] = alt
-        covdf = pd.read_csv(cov_file, sep="\t", names=["#CHROM", "POS", "COV"])
-        uncovered = covdf[covdf.COV == 0]
-        for _, row in uncovered.iterrows():
-            reflist[row.POS - 1] = 'N'
-        output_file = os.path.join(out_folder, sample + ".consensus.fasta")
-        with open(output_file, 'w+') as fout:
-            fout.write('>{}\n{}\n'.format(sample,('').join(reflist)))
 
 
 if __name__ == '__main__':

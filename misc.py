@@ -259,8 +259,8 @@ def extract_snp_count(output_dir,sample):
     if '.' in sample:
         sample = sample.split('.')[0]
     variants_folder = os.path.join(output_dir, 'Variants')
-    raw_var_folder = os.path.join(variants_folder, 'freebayes_filtered')
-    filename = os.path.join(raw_var_folder, sample + ".tsv")
+    raw_var_folder = os.path.join(variants_folder, sample)
+    filename = os.path.join(raw_var_folder, "snps.all.ivar.tsv")
 
     if os.path.exists(filename):
         df = pd.read_csv(filename, sep="\t")
@@ -306,18 +306,19 @@ def extract_n_consensus(output_dir,sample):
     sample = str(sample)
     if '.' in sample:
         sample = sample.split('.')[0]
-    consensus_folder = os.path.join(output_dir, 'Consensus')
-    filename = os.path.join(consensus_folder, sample + ".fa")
+    consensus_folder = os.path.join(output_dir, 'Variants')
+    consensus_folder_sample = os.path.join(consensus_folder, sample)
+    filename = os.path.join(consensus_folder_sample, "snps.consensus.fa")
 
     if os.path.exists(filename):
         with open (filename, 'r') as f:
             content = f.read()
             content_list = content.split('\n')
-            sample_fq = content_list[0].strip(">")
-            if sample_fq == sample:
-                #In case fasta is in several lines(not by default)
-                sequence = ("").join(content_list[1:]).strip()
-                all_N = re.findall(r'N+', sequence)
+            #sample_fq = content_list[0].strip(">")
+            #In case fasta is in several lines(not by default)
+            sequence = ("").join(content_list[1:]).strip()
+            all_N = re.findall(r'N+', sequence)
+            if all_N:
                 leading_N = re.findall(r'^N+', sequence)
                 tailing_N = re.findall(r'N+$', sequence)
                 length_N = [len(x) for x in all_N]
@@ -326,6 +327,9 @@ def extract_n_consensus(output_dir,sample):
                 sum_length_N = sum(length_N)
                 total_perc_N = sum_length_N / len(sequence) * 100
                 return(len(all_N), len(individual_N), len(leading_N), len(tailing_N), sum_length_N, total_perc_N, mean_length_N)
+            else:
+                return(0, 0, 0, 0, 0, 0, 0)
+
     else:
         print("FILE " + filename + " NOT FOUND" )
         return None
