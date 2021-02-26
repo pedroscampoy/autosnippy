@@ -20,7 +20,8 @@ from preprocessing import fastqc_quality, fastp_trimming, format_html_image
 from bam_variants import run_snippy, extract_indels, merge_vcf, create_bamstat, create_coverage
 from vcf_process import filter_tsv_variants, vcf_to_ivar_tsv
 from annotation import annotate_snpeff, user_annotation
-from compare_snp import ddtb_add, ddtb_compare, ddbb_create_intermediate, revised_df, recalibrate_ddbb_vcf_intermediate
+from compare_snp import ddtb_add, ddtb_compare, ddbb_create_intermediate, revised_df, recalibrate_ddbb_vcf_intermediate, \
+    remove_position_range
 
 """
 =============================================================
@@ -182,8 +183,8 @@ def main():
     #Output related
     out_qc_dir = os.path.join(output, "Quality")
     out_qc_pre_dir = os.path.join(out_qc_dir, "raw") #subfolder
-    out_qc_post_dir = os.path.join(out_qc_dir, "processed") #subfolder
-    out_trim_dir = os.path.join(output, "Trimmed")
+    #out_qc_post_dir = os.path.join(out_qc_dir, "processed") #subfolder
+    #out_trim_dir = os.path.join(output, "Trimmed")
     out_map_dir = os.path.join(output, "Bam")
     out_variant_dir = os.path.join(output, "Variants")
     out_variant_ivar_dir = os.path.join(out_variant_dir, "ivar_raw") #subfolder
@@ -381,32 +382,40 @@ def main():
 
     ################SNP COMPARISON using tsv variant files
     ######################################################
-    # logger.info("\n\n" + BLUE + BOLD + "STARTING COMPARISON IN GROUP: " + group_name + END_FORMATTING + "\n")
+    logger.info("\n\n" + BLUE + BOLD + "STARTING COMPARISON IN GROUP: " + group_name + END_FORMATTING + "\n")
 
-    # check_create_dir(out_compare_dir)
-    # folder_compare = today + "_" + group_name
-    # path_compare = os.path.join(out_compare_dir, folder_compare)
-    # check_create_dir(path_compare)
-    # full_path_compare = os.path.join(path_compare, group_name)
+    check_create_dir(out_compare_dir)
+    folder_compare = today + "_" + group_name
+    path_compare = os.path.join(out_compare_dir, folder_compare)
+    check_create_dir(path_compare)
+    full_path_compare = os.path.join(path_compare, group_name)
 
-    # #ddtb_add(out_filtered_freebayes_dir, full_path_compare)
-    # compare_snp_matrix_recal = full_path_compare + ".revised.final.tsv"
-    # compare_snp_matrix_recal_intermediate = full_path_compare + ".revised_intermediate.tsv"
-    # compare_snp_matrix_recal_mpileup = full_path_compare + ".revised_intermediate_mpileup.tsv"
+    compare_snp_matrix_recal = full_path_compare + ".revised.final.tsv"
+    compare_snp_matrix_recal_intermediate = full_path_compare + ".revised_intermediate.tsv"
+    compare_snp_matrix_recal_mpileup = full_path_compare + ".revised_intermediate_mpileup.tsv"
+    compare_snp_matrix_INDEL_intermediate = full_path_compare + ".revised_INDEL_intermediate.tsv"
 
-    # recalibrated_snp_matrix_intermediate = ddbb_create_intermediate(out_filtered_freebayes_dir, out_stats_coverage_dir, min_freq_discard=0.1, min_alt_dp=10)
-    # recalibrated_snp_matrix_intermediate.to_csv(compare_snp_matrix_recal_intermediate, sep="\t", index=False)
+    recalibrated_snp_matrix_intermediate = ddbb_create_intermediate(out_variant_dir, out_stats_coverage_dir, min_freq_discard=0.1, min_alt_dp=10)
+    recalibrated_snp_matrix_intermediate.to_csv(compare_snp_matrix_recal_intermediate, sep="\t", index=False)
 
-    # recalibrated_snp_matrix_mpileup = recalibrate_ddbb_vcf_intermediate(compare_snp_matrix_recal_intermediate, out_map_dir, min_cov_low_freq = 10)
+    # recalibrated_snp_matrix_mpileup = recalibrate_ddbb_vcf_intermediate(compare_snp_matrix_recal_intermediate, out_variant_dir, min_cov_low_freq = 10)
     # recalibrated_snp_matrix_mpileup.to_csv(compare_snp_matrix_recal_mpileup, sep="\t", index=False)
 
 
     # recalibrated_revised_df = revised_df(recalibrated_snp_matrix_mpileup, path_compare, min_freq_include=0.8, min_threshold_discard_uncov_sample=0.4, min_threshold_discard_uncov_pos=0.4, min_threshold_discard_htz_sample=0.4, min_threshold_discard_htz_pos=0.4, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True)
     # recalibrated_revised_df.to_csv(compare_snp_matrix_recal, sep="\t", index=False)
 
-    # ddtb_compare(compare_snp_matrix_recal, distance=5)
+    compare_snp_matrix_INDEL_intermediate_df = remove_position_range(recalibrated_snp_matrix_intermediate)
+    compare_snp_matrix_INDEL_intermediate_df.to_csv(compare_snp_matrix_INDEL_intermediate, sep="\t", index=False)
 
-    # logger.info("\n\n" + MAGENTA + BOLD + "COMPARING FINISHED IN GROUP: " + group_name + END_FORMATTING + "\n")
+    #recalibrated_revised_df = revised_df(recalibrated_snp_matrix_intermediate, out_compare_dir, min_freq_include=0.8, min_threshold_discard_uncov_sample=0.4, min_threshold_discard_uncov_pos=0.4, min_threshold_discard_htz_sample=0.4, min_threshold_discard_htz_pos=0.4, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True)
+
+    recalibrated_revised_INDEL_df = revised_df(compare_snp_matrix_INDEL_intermediate_df, out_compare_dir, min_freq_include=0.8, min_threshold_discard_uncov_sample=0.9, min_threshold_discard_uncov_pos=0.9, min_threshold_discard_htz_sample=0.9, min_threshold_discard_htz_pos=0.9, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True)
+    recalibrated_revised_INDEL_df.to_csv(compare_snp_matrix_recal, sep="\t", index=False)
+
+    ddtb_compare(compare_snp_matrix_recal, distance=5)
+
+    logger.info("\n\n" + MAGENTA + BOLD + "COMPARING FINISHED IN GROUP: " + group_name + END_FORMATTING + "\n")
 
     
     logger.info("\n\n" + MAGENTA + BOLD + "#####END OF PIPELINE AUTOSNIPPY ANALYSIS#####" + END_FORMATTING + "\n")

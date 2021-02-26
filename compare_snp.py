@@ -72,10 +72,10 @@ def blank_database():
     return new_pandas_ddtb
 
 ####COMPARE SNP 2.0
-def import_tsv_variants(tsv_file,  min_total_depth=4, min_alt_dp=4, only_snp=True):
-    base_file = os.path.basename(tsv_file)
+def import_tsv_variants(tsv_file, sample, min_total_depth=4, min_alt_dp=4, only_snp=True):
+    #base_file = os.path.basename(tsv_file)
     input_file = os.path.abspath(tsv_file)
-    sample = base_file.split(".")[0]
+    #sample = base_file.split(".")[0]
 
     df = pd.read_csv(input_file, sep='\t')
     df = df.drop_duplicates(subset=['POS', 'REF', 'ALT'], keep="first")
@@ -92,10 +92,10 @@ def import_tsv_variants(tsv_file,  min_total_depth=4, min_alt_dp=4, only_snp=Tru
     else:
         return df
 
-def extract_lowfreq(tsv_file,  min_total_depth=4, min_alt_dp=4, min_freq_include=0.7, only_snp=True):
-    base_file = os.path.basename(tsv_file)
+def extract_lowfreq(tsv_file, sample, min_total_depth=4, min_alt_dp=4, min_freq_include=0.7, only_snp=True):
+    #base_file = os.path.basename(tsv_file)
     input_file = os.path.abspath(tsv_file)
-    sample = base_file.split(".")[0]
+    #sample = base_file.split(".")[0]
 
     df = pd.read_csv(input_file, sep='\t')
     df = df.drop_duplicates(subset=['POS', 'REF', 'ALT'], keep="first")
@@ -128,13 +128,13 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
     df = pd.DataFrame(columns=['REGION','POS', 'REF', 'ALT'])
     #Merge all raw
     for root, _, files in os.walk(variant_dir):
-        if root == variant_dir:
-            for name in files:
-                if name.endswith('.tsv'):
-                    logger.debug("Adding: " + name)
-                    filename = os.path.join(root, name)
-                    dfv = import_tsv_variants(filename)
-                    df = df.merge(dfv, how='outer')
+        for name in files:
+            if name == "snps.all.ivar.tsv":
+                sample = root.split("/")[-1]
+                logger.debug("Adding: " + sample)
+                filename = os.path.join(root, name)
+                dfv = import_tsv_variants(filename, sample, min_total_depth=4, min_alt_dp=4, only_snp=True)
+                df = df.merge(dfv, how='outer')
     #Rounf frequencies
     df = df.round(2)
     #Remove <= 0.1 (parameter in function)
@@ -147,14 +147,13 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
 
     #Include poorly covered
     for root, _, files in os.walk(variant_dir):
-        if root == variant_dir:
-            for name in files:
-                if name.endswith('.tsv'):
-                    filename = os.path.join(root, name)
-                    sample = name.split('.')[0]
-                    logger.debug("Adding lowfreqs: " + sample)
-                    dfl = extract_lowfreq(filename, min_total_depth=4, min_alt_dp=min_alt_dp, only_snp=True)
-                    df[sample].update(df[['REGION', 'POS', 'REF', 'ALT']].merge(dfl, on=['REGION', 'POS', 'REF', 'ALT'], how='left')[sample])
+        for name in files:
+            if name == "snps.all.ivar.tsv":
+                filename = os.path.join(root, name)
+                sample = root.split("/")[-1]
+                logger.debug("Adding lowfreqs: " + sample)
+                dfl = extract_lowfreq(filename, sample, min_total_depth=4, min_alt_dp=min_alt_dp, only_snp=True)
+                df[sample].update(df[['REGION', 'POS', 'REF', 'ALT']].merge(dfl, on=['REGION', 'POS', 'REF', 'ALT'], how='left')[sample])
 
     #Include uncovered
     samples_coverage = df.columns.tolist()[4:]
@@ -195,6 +194,23 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
 
     df = df[['Position', 'N', 'Samples'] + [ col for col in df.columns if col not in ['Position', 'N', 'Samples']]]
 
+    return df
+
+def remove_position_range(df):
+
+    INDELs = df[df['Position'].str.contains(r'\|-[ATCG]+', regex=True)]
+
+    bed_df = pd.DataFrame()
+    bed_df['#CHROM'] = INDELs['Position'].str.split('|').str[0]
+    bed_df['start'] = INDELs['Position'].str.split('|').str[2].astype('int') + 1
+    bed_df['length'] = INDELs['Position'].str.split(r'\|-').str[1].str.len().astype('int')
+    bed_df['end'] = INDELs['Position'].str.split('|').str[2].astype('int') + INDELs['Position'].str.split(r'\|-').str[1].str.len().astype('int')
+
+    for _, row in df.iterrows():
+        position_number = int(row.Position.split("|")[2])
+        if any(start <= position_number <= end for (start, end) in zip(bed_df.start.values.tolist(), bed_df.end.values.tolist())):
+            #logger.info('Position: {} removed found in {}'.format(row.Position, df))
+            df = df[df.Position != row.Position]
     return df
 
 
@@ -553,7 +569,7 @@ def revised_df(df, out_dir=False, min_freq_include=0.8, min_threshold_discard_un
     
     return df
 
-def recheck_variant_mpileup_intermediate(reference_id, position, alt_snp, sample, previous_binary, bam_folder, min_cov_low_freq = 10):
+def recheck_variant_mpileup_intermediate(reference_id, position, alt_snp, sample, previous_binary, variant_folder, min_cov_low_freq = 10):
 
     """
     http://www.htslib.org/doc/samtools-mpileup.html
@@ -576,12 +592,13 @@ def recheck_variant_mpileup_intermediate(reference_id, position, alt_snp, sample
         position = int(position)
 
         #Identify correct bam
-        for root, _, files in os.walk(bam_folder):
+        for root, _, files in os.walk(variant_folder):
             for name in files:
-                filename = os.path.join(root, name)
-                sample_file = name.split('.')[0]
-                if name.startswith(sample) and sample_file == sample and name.endswith(".bam"):
-                    bam_file = filename
+                if name == "snps.bam":
+                    sample_file = root.split("/")[-1]
+                    filename = os.path.join(root, name)
+                    if sample_file == sample and name.endswith(".bam"):
+                        bam_file = filename
         #format position for mpileup execution (NC_000962.3:632455-632455)
         position_format = reference_id + ":" + str(position) + "-" + str(position)
         
