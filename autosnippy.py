@@ -265,6 +265,12 @@ def main():
                 else:
                     logger.info(GREEN + "Calling variants with snippy " + sample + END_FORMATTING)
                     run_snippy(r1_file, r2_file, reference, out_variant_dir, sample, threads=args.threads, minqual=20, minfrac=0.1, mincov=1)
+                    old_bam = os.path.join(sample_variant_dir, "snps.bam")
+                    old_bai = os.path.join(sample_variant_dir, "snps.bam.bai")
+                    new_bam = os.path.join(sample_variant_dir, sample + ".bam")
+                    new_bai = os.path.join(sample_variant_dir, sample + ".bam.bai")
+                    os.rename(old_bam, new_bam)
+                    os.rename(old_bai, new_bai)
 
                 #VARIANT FORMAT COMBINATION (REMOVE COMPLEX) ########
                 #####################################################
@@ -308,7 +314,7 @@ def main():
             check_create_dir(out_stats_bamstats_dir)
             out_bamstats_name = sample + ".bamstats"
             out_bamstats_file = os.path.join(out_stats_bamstats_dir, out_bamstats_name)
-            bam_sample_file = os.path.join(sample_variant_dir, "snps.bam")
+            bam_sample_file = os.path.join(sample_variant_dir, sample + ".bam")
 
             if os.path.isfile(out_bamstats_file):
                 logger.info(YELLOW + DIM + out_bamstats_file + " EXIST\nOmmiting Bamstats for  sample " + sample + END_FORMATTING)
@@ -392,25 +398,25 @@ def main():
 
     compare_snp_matrix_recal = full_path_compare + ".revised.final.tsv"
     compare_snp_matrix_recal_intermediate = full_path_compare + ".revised_intermediate.tsv"
-    compare_snp_matrix_recal_mpileup = full_path_compare + ".revised_intermediate_mpileup.tsv"
+    compare_snp_matrix_recal_mpileup = full_path_compare + ".revised_intermediate_vcf.tsv"
     compare_snp_matrix_INDEL_intermediate = full_path_compare + ".revised_INDEL_intermediate.tsv"
 
     recalibrated_snp_matrix_intermediate = ddbb_create_intermediate(out_variant_dir, out_stats_coverage_dir, min_freq_discard=0.1, min_alt_dp=10)
     recalibrated_snp_matrix_intermediate.to_csv(compare_snp_matrix_recal_intermediate, sep="\t", index=False)
 
-    # recalibrated_snp_matrix_mpileup = recalibrate_ddbb_vcf_intermediate(compare_snp_matrix_recal_intermediate, out_variant_dir, min_cov_low_freq = 10)
-    # recalibrated_snp_matrix_mpileup.to_csv(compare_snp_matrix_recal_mpileup, sep="\t", index=False)
+    recalibrated_snp_matrix_mpileup = recalibrate_ddbb_vcf_intermediate(compare_snp_matrix_recal_intermediate, out_variant_dir, min_cov_low_freq = 10)
+    recalibrated_snp_matrix_mpileup.to_csv(compare_snp_matrix_recal_mpileup, sep="\t", index=False)
 
 
     # recalibrated_revised_df = revised_df(recalibrated_snp_matrix_mpileup, path_compare, min_freq_include=0.8, min_threshold_discard_uncov_sample=0.4, min_threshold_discard_uncov_pos=0.4, min_threshold_discard_htz_sample=0.4, min_threshold_discard_htz_pos=0.4, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True)
     # recalibrated_revised_df.to_csv(compare_snp_matrix_recal, sep="\t", index=False)
 
-    compare_snp_matrix_INDEL_intermediate_df = remove_position_range(recalibrated_snp_matrix_intermediate)
+    compare_snp_matrix_INDEL_intermediate_df = remove_position_range(recalibrated_snp_matrix_mpileup)
     compare_snp_matrix_INDEL_intermediate_df.to_csv(compare_snp_matrix_INDEL_intermediate, sep="\t", index=False)
 
     #recalibrated_revised_df = revised_df(recalibrated_snp_matrix_intermediate, out_compare_dir, min_freq_include=0.8, min_threshold_discard_uncov_sample=0.4, min_threshold_discard_uncov_pos=0.4, min_threshold_discard_htz_sample=0.4, min_threshold_discard_htz_pos=0.4, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True)
 
-    recalibrated_revised_INDEL_df = revised_df(compare_snp_matrix_INDEL_intermediate_df, out_compare_dir, min_freq_include=0.8, min_threshold_discard_uncov_sample=0.9, min_threshold_discard_uncov_pos=0.9, min_threshold_discard_htz_sample=0.9, min_threshold_discard_htz_pos=0.9, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True)
+    recalibrated_revised_INDEL_df = revised_df(compare_snp_matrix_INDEL_intermediate_df, path_compare, min_freq_include=0.8, min_threshold_discard_uncov_sample=0.6, min_threshold_discard_uncov_pos=0.6, min_threshold_discard_htz_sample=0.6, min_threshold_discard_htz_pos=0.6, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True)
     recalibrated_revised_INDEL_df.to_csv(compare_snp_matrix_recal, sep="\t", index=False)
 
     ddtb_compare(compare_snp_matrix_recal, distance=5)
