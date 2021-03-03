@@ -21,7 +21,7 @@ from bam_variants import run_snippy, extract_indels, merge_vcf, create_bamstat, 
 from vcf_process import filter_tsv_variants, vcf_to_ivar_tsv
 from annotation import annotate_snpeff, user_annotation
 from compare_snp import ddtb_add, ddtb_compare, ddbb_create_intermediate, revised_df, recalibrate_ddbb_vcf_intermediate, \
-    remove_position_range
+    remove_position_range, extract_complex_list
 
 """
 =============================================================
@@ -45,7 +45,7 @@ END_OF_HEADER
 ================================================================
 """
 
-#COLORS AND AND FORMATTING
+# COLORS AND AND FORMATTING
 
 END_FORMATTING = '\033[0m'
 WHITE_BG = '\033[0;30;47m'
@@ -54,66 +54,90 @@ UNDERLINE = '\033[4m'
 RED = '\033[31m'
 GREEN = '\033[32m'
 MAGENTA = '\033[35m'
-BLUE =  '\033[34m'
+BLUE = '\033[34m'
 CYAN = '\033[36m'
 YELLOW = '\033[93m'
 DIM = '\033[2m'
 
 logger = logging.getLogger()
 
+
 def main():
     """
     Create main function to capture code errors: https://stackoverflow.com/questions/6234405/logging-uncaught-exceptions-in-python
     """
 
-    #ARGUMENTS
+    # ARGUMENTS
 
     def get_arguments():
 
-        parser = argparse.ArgumentParser(prog = 'autosnippy.py', description= 'Pipeline to call variants (SNVs) with any non model haploid organism using snippy')
-        
+        parser = argparse.ArgumentParser(
+            prog='autosnippy.py', description='Pipeline to call variants (SNVs) with any non model haploid organism using snippy')
+
         input_group = parser.add_argument_group('Input', 'Input parameters')
 
-        input_group.add_argument('-i', '--input', dest="input_dir", metavar="input_directory", type=str, required=True, help='REQUIRED.Input directory containing all fast[aq] files')
-        input_group.add_argument('-r', '--reference', metavar="reference", type=str, required=True, help='REQUIRED. File to map against')
-        input_group.add_argument('-s', '--sample', metavar="sample", type=str, required=False, help='Sample to identify further files')
-        input_group.add_argument('-L', '--sample_list', type=str, required=False, help='Sample names to analyse only in the file supplied')
-        input_group.add_argument('-p', '--primers', type=str, default='/home/laura/DATABASES/Anotacion/COVID/primers/nCoV-2019.bed', required=False, help='Bed file including primers to trim')
-        
-        quality_group = parser.add_argument_group('Quality parameters', 'parameters for diferent triming conditions')
+        input_group.add_argument('-i', '--input', dest="input_dir", metavar="input_directory",
+                                 type=str, required=True, help='REQUIRED.Input directory containing all fast[aq] files')
+        input_group.add_argument('-r', '--reference', metavar="reference",
+                                 type=str, required=True, help='REQUIRED. File to map against')
+        input_group.add_argument('-s', '--sample', metavar="sample", type=str,
+                                 required=False, help='Sample to identify further files')
+        input_group.add_argument('-L', '--sample_list', type=str, required=False,
+                                 help='Sample names to analyse only in the file supplied')
+        input_group.add_argument('-p', '--primers', type=str, default='/home/laura/DATABASES/Anotacion/COVID/primers/nCoV-2019.bed',
+                                 required=False, help='Bed file including primers to trim')
 
-        quality_group.add_argument('-c', '--coverage20', type=int, default=90, required=False, help='Minimum percentage of coverage at 20x to clasify as uncovered (Default 90)')
-        quality_group.add_argument('-n', '--min_snp', type=int, required=False, default=1, help='SNP number to pass quality threshold')
+        quality_group = parser.add_argument_group(
+            'Quality parameters', 'parameters for diferent triming conditions')
 
-        output_group = parser.add_argument_group('Output', 'Required parameter to output results')
+        quality_group.add_argument('-c', '--coverage20', type=int, default=90, required=False,
+                                   help='Minimum percentage of coverage at 20x to clasify as uncovered (Default 90)')
+        quality_group.add_argument('-n', '--min_snp', type=int, required=False,
+                                   default=1, help='SNP number to pass quality threshold')
 
-        output_group.add_argument('-o', '--output', type=str, required=True, help='REQUIRED. Output directory to extract all results')
-        output_group.add_argument('-C', '--noclean', required=False, action='store_false', help='Clean unwanted files for standard execution')
+        output_group = parser.add_argument_group(
+            'Output', 'Required parameter to output results')
 
-        params_group = parser.add_argument_group('Parameters', 'parameters for diferent stringent conditions')
+        output_group.add_argument('-o', '--output', type=str, required=True,
+                                  help='REQUIRED. Output directory to extract all results')
+        output_group.add_argument('-C', '--noclean', required=False,
+                                  action='store_false', help='Clean unwanted files for standard execution')
 
-        params_group.add_argument('-T', '--threads', type=str, dest="threads", required=False, default=16, help='Threads to use')
-        params_group.add_argument('-M', '--memory', type=str, dest="memory", required=False, default=32, help='Max memory to use')
+        params_group = parser.add_argument_group(
+            'Parameters', 'parameters for diferent stringent conditions')
 
-        annot_group = parser.add_argument_group('Annotation', 'parameters for variant annotation')
+        params_group.add_argument('-T', '--threads', type=str, dest="threads",
+                                  required=False, default=16, help='Threads to use')
+        params_group.add_argument('-M', '--memory', type=str, dest="memory",
+                                  required=False, default=32, help='Max memory to use')
 
-        annot_group.add_argument('-B', '--annot_bed', type=str, default=[], required=False, action='append', help='bed file to annotate')
-        annot_group.add_argument('-V', '--annot_vcf', type=str, default=[], required=False, action='append', help='vcf file to annotate')
-        annot_group.add_argument('-A', '--annot_aa', type=str, default=[], required=False, action='append', help='aminoacid file to annotate')
-        annot_group.add_argument('-R', '--remove_bed', type=str, default=False, required=False, help='BED file with positions to remove')
-        annot_group.add_argument('--mash_database', type=str, required=False, default=False, help='MASH ncbi annotation containing all species database')
-        annot_group.add_argument('--snpeff_database', type=str, required=False, default=False, help='snpEFF annotation database')
+        annot_group = parser.add_argument_group(
+            'Annotation', 'parameters for variant annotation')
 
-        compare_group = parser.add_argument_group('Compare', 'parameters for compare_snp')
+        annot_group.add_argument('-B', '--annot_bed', type=str, default=[],
+                                 required=False, action='append', help='bed file to annotate')
+        annot_group.add_argument('-V', '--annot_vcf', type=str, default=[],
+                                 required=False, action='append', help='vcf file to annotate')
+        annot_group.add_argument('-A', '--annot_aa', type=str, default=[],
+                                 required=False, action='append', help='aminoacid file to annotate')
+        annot_group.add_argument('-R', '--remove_bed', type=str, default=False,
+                                 required=False, help='BED file with positions to remove')
+        annot_group.add_argument('--mash_database', type=str, required=False,
+                                 default=False, help='MASH ncbi annotation containing all species database')
+        annot_group.add_argument('--snpeff_database', type=str, required=False,
+                                 default=False, help='snpEFF annotation database')
 
-        compare_group.add_argument('-S', '--only_snp', required=False, action='store_true', help='Use INDELS while comparing')
+        compare_group = parser.add_argument_group(
+            'Compare', 'parameters for compare_snp')
+
+        compare_group.add_argument('-S', '--only_snp', required=False,
+                                   action='store_true', help='Use INDELS while comparing')
 
         arguments = parser.parse_args()
 
         return arguments
 
     args = get_arguments()
-
 
     ######################################################################
     #####################START PIPELINE###################################
@@ -123,8 +147,8 @@ def main():
     reference = os.path.abspath(args.reference)
     #annotation = os.path.abspath(args.annotation)
 
-    #LOGGING
-    #Create log file with date and time
+    # LOGGING
+    # Create log file with date and time
     right_now = str(datetime.datetime.now())
     right_now_full = "_".join(right_now.split(" "))
     log_filename = group_name + "_" + right_now_full + ".log"
@@ -143,13 +167,13 @@ def main():
 
     stream_handler = logging.StreamHandler()
     stream_handler.setLevel(logging.INFO)
-    #stream_handler.setFormatter(formatter)
+    # stream_handler.setFormatter(formatter)
 
     logger.addHandler(stream_handler)
     logger.addHandler(file_handler)
 
-
-    logger.info("\n\n" + BLUE + BOLD + "STARTING PIPELINE IN GROUP: " + group_name + END_FORMATTING)
+    logger.info("\n\n" + BLUE + BOLD +
+                "STARTING PIPELINE IN GROUP: " + group_name + END_FORMATTING)
 
     today = str(datetime.date.today())
 
@@ -158,10 +182,10 @@ def main():
 
     check_reanalysis(args.output)
 
-    #Obtain all R1 and R2 from folder
+    # Obtain all R1 and R2 from folder
     r1, r2 = extract_read_list(args.input_dir)
 
-    #Check if there are samples to filter out
+    # Check if there are samples to filter out
     sample_list_F = []
     if args.sample_list == None:
         logger.info("\n" + "No samples to filter")
@@ -171,140 +195,164 @@ def main():
     else:
         logger.info("samples will be filtered")
         sample_list_F = file_to_list(args.sample_list)
-    logger.info("\n%d samples will be analysed: %s" % (len(sample_list_F), ",".join(sample_list_F)))
-
+    logger.info("\n%d samples will be analysed: %s" %
+                (len(sample_list_F), ",".join(sample_list_F)))
 
     #DECLARE FOLDERS CREATED IN PIPELINE ################
     #AND KEY FILES ######################################
     #####################################################
-    #Annotation related parameters
+    # Annotation related parameters
     #script_dir = os.path.dirname(os.path.realpath(__file__))
 
-    #Output related
+    # Output related
     out_qc_dir = os.path.join(output, "Quality")
-    out_qc_pre_dir = os.path.join(out_qc_dir, "raw") #subfolder
-    #out_qc_post_dir = os.path.join(out_qc_dir, "processed") #subfolder
+    out_qc_pre_dir = os.path.join(out_qc_dir, "raw")  # subfolder
+    # out_qc_post_dir = os.path.join(out_qc_dir, "processed") #subfolder
     #out_trim_dir = os.path.join(output, "Trimmed")
     out_map_dir = os.path.join(output, "Bam")
     out_variant_dir = os.path.join(output, "Variants")
-    out_variant_ivar_dir = os.path.join(out_variant_dir, "ivar_raw") #subfolder
-    out_filtered_ivar_dir = os.path.join(out_variant_dir, "ivar_filtered") #subfolder
+    out_variant_ivar_dir = os.path.join(
+        out_variant_dir, "ivar_raw")  # subfolder
+    out_filtered_ivar_dir = os.path.join(
+        out_variant_dir, "ivar_filtered")  # subfolder
     out_consensus_dir = os.path.join(output, "Consensus")
-    out_consensus_ivar_dir = os.path.join(out_consensus_dir, "ivar") #subfolder
-
+    out_consensus_ivar_dir = os.path.join(
+        out_consensus_dir, "ivar")  # subfolder
 
     out_stats_dir = os.path.join(output, "Stats")
-    out_stats_bamstats_dir = os.path.join(out_stats_dir, "Bamstats") #subfolder
-    out_stats_coverage_dir = os.path.join(out_stats_dir, "Coverage") #subfolder
+    out_stats_bamstats_dir = os.path.join(
+        out_stats_dir, "Bamstats")  # subfolder
+    out_stats_coverage_dir = os.path.join(
+        out_stats_dir, "Coverage")  # subfolder
     out_compare_dir = os.path.join(output, "Compare")
 
     out_annot_dir = os.path.join(output, "Annotation")
-    out_annot_snpeff_dir = os.path.join(out_annot_dir, "snpeff") #subfolder
-    out_annot_user_dir = os.path.join(out_annot_dir, "user") #subfolder
-    out_annot_user_aa_dir = os.path.join(out_annot_dir, "user_aa") #subfolder
-
+    out_annot_snpeff_dir = os.path.join(out_annot_dir, "snpeff")  # subfolder
+    out_annot_user_dir = os.path.join(out_annot_dir, "user")  # subfolder
+    out_annot_user_aa_dir = os.path.join(out_annot_dir, "user_aa")  # subfolder
 
     for r1_file, r2_file in zip(r1, r2):
-        #EXtract sample name
+        # EXtract sample name
         sample = extract_sample(r1_file, r2_file)
         args.sample = sample
         if sample in sample_list_F:
+            # VARINAT SAMPLE DIR
+            sample_variant_dir = os.path.join(out_variant_dir, sample)
 
             sample_number = str(sample_list_F.index(sample) + 1)
             sample_total = str(len(sample_list_F))
 
-            out_markdup_trimmed_name = sample + ".rg.markdup.trimmed.sorted.bam"
-            output_markdup_trimmed_file = os.path.join(out_map_dir, out_markdup_trimmed_name)
+            output_final_vcf = os.path.join(
+                sample_variant_dir, 'snps.all.ivar.tsv')
 
-            logger.info("\n" + WHITE_BG + "STARTING SAMPLE: " + sample + " (" + sample_number + "/" + sample_total + ")" + END_FORMATTING)
+            logger.info("\n" + WHITE_BG + "STARTING SAMPLE: " + sample +
+                        " (" + sample_number + "/" + sample_total + ")" + END_FORMATTING)
 
-            if not os.path.isfile(output_markdup_trimmed_file):
-            
+            if not os.path.isfile(output_final_vcf):
+
                 args.r1_file = r1_file
                 args.r2_file = r2_file
 
                 ##############START PIPELINE#####################
                 #################################################
 
-                #INPUT ARGUMENTS
+                # INPUT ARGUMENTS
                 ################
-                check_file_exists(r1_file)
-                check_file_exists(r2_file)
+                # check_file_exists(r1_file)
+                # check_file_exists(r2_file)
 
                 args.output = os.path.abspath(args.output)
                 check_create_dir(args.output)
 
-                ######################QUALITY CHECK in RAW with fastqc
+                # QUALITY CHECK in RAW with fastqc
                 ######################################################
                 check_create_dir(out_qc_dir)
 
-                out_qc_raw_name_r1 = (".").join(r1_file.split('/')[-1].split('.')[0:-2]) + '_fastqc.html'
-                out_qc_raw_name_r2 = (".").join(r2_file.split('/')[-1].split('.')[0:-2]) + '_fastqc.html'
-                output_qc_raw_file_r1 = os.path.join(out_qc_pre_dir, out_qc_raw_name_r1)
-                output_qc_raw_file_r2 = os.path.join(out_qc_pre_dir, out_qc_raw_name_r2)
-                                
-                if os.path.isfile(output_qc_raw_file_r1) and os.path.isfile(output_qc_raw_file_r2):
-                    logger.info(YELLOW + DIM + output_qc_raw_file_r1 + " EXIST\nOmmiting QC for sample " + sample + END_FORMATTING)
-                else:
-                    logger.info(GREEN + "Checking quality in sample " + sample + END_FORMATTING)
-                    logger.info("R1: " + r1_file + "\nR2: " + r2_file)
-                    fastqc_quality(r1_file, r2_file, out_qc_pre_dir, args.threads)
+                # out_qc_raw_name_r1 = (".").join(r1_file.split(
+                #     '/')[-1].split('.')[0:-2]) + '_fastqc.html'
+                # out_qc_raw_name_r2 = (".").join(r2_file.split(
+                #     '/')[-1].split('.')[0:-2]) + '_fastqc.html'
+                # output_qc_raw_file_r1 = os.path.join(
+                #     out_qc_pre_dir, out_qc_raw_name_r1)
+                # output_qc_raw_file_r2 = os.path.join(
+                #     out_qc_pre_dir, out_qc_raw_name_r2)
+
+                # if os.path.isfile(output_qc_raw_file_r1) and os.path.isfile(output_qc_raw_file_r2):
+                #     logger.info(YELLOW + DIM + output_qc_raw_file_r1 +
+                #                 " EXIST\nOmmiting QC for sample " + sample + END_FORMATTING)
+                # else:
+                #     logger.info(
+                #         GREEN + "Checking quality in sample " + sample + END_FORMATTING)
+                #     logger.info("R1: " + r1_file + "\nR2: " + r2_file)
+                #     fastqc_quality(r1_file, r2_file,
+                #                    out_qc_pre_dir, args.threads)
 
                 """
                 TODO: Human filter
                 """
-                
-                ####VARIANT CALLING WITH SNIPPY
+
+                # VARIANT CALLING WITH SNIPPY
                 ###################################################
-                sample_variant_dir = os.path.join(out_variant_dir, sample)
-                output_vcf_sub = os.path.join(sample_variant_dir, "snps.subs.vcf")
+
+                output_vcf_sub = os.path.join(
+                    sample_variant_dir, "snps.subs.vcf")
                 output_vcf = os.path.join(sample_variant_dir, "snps.vcf")
-                
-                if os.path.isfile(output_vcf_sub) and os.path.isfile(output_vcf):
-                    logger.info(YELLOW + DIM + output_vcf + " EXIST\nOmmiting Variant calling in  " + sample + END_FORMATTING)
-                else:
-                    logger.info(GREEN + "Calling variants with snippy " + sample + END_FORMATTING)
-                    run_snippy(r1_file, r2_file, reference, out_variant_dir, sample, threads=args.threads, minqual=20, minfrac=0.1, mincov=1)
-                    old_bam = os.path.join(sample_variant_dir, "snps.bam")
-                    old_bai = os.path.join(sample_variant_dir, "snps.bam.bai")
-                    new_bam = os.path.join(sample_variant_dir, sample + ".bam")
-                    new_bai = os.path.join(sample_variant_dir, sample + ".bam.bai")
-                    os.rename(old_bam, new_bam)
-                    os.rename(old_bai, new_bai)
+
+                # if os.path.isfile(output_vcf_sub) and os.path.isfile(output_vcf):
+                #     logger.info(YELLOW + DIM + output_vcf +
+                #                 " EXIST\nOmmiting Variant calling in  " + sample + END_FORMATTING)
+                # else:
+                #     logger.info(
+                #         GREEN + "Calling variants with snippy " + sample + END_FORMATTING)
+                #     run_snippy(r1_file, r2_file, reference, out_variant_dir, sample,
+                #                threads=args.threads, minqual=20, minfrac=0.1, mincov=1)
+                #     old_bam = os.path.join(sample_variant_dir, "snps.bam")
+                #     old_bai = os.path.join(sample_variant_dir, "snps.bam.bai")
+                #     new_bam = os.path.join(sample_variant_dir, sample + ".bam")
+                #     new_bai = os.path.join(
+                #         sample_variant_dir, sample + ".bam.bai")
+                #     os.rename(old_bam, new_bam)
+                #     os.rename(old_bai, new_bai)
 
                 #VARIANT FORMAT COMBINATION (REMOVE COMPLEX) ########
                 #####################################################
-                out_variant_indel_sample = os.path.join(sample_variant_dir, "snps.indel.vcf")
-                out_variant_all_sample = os.path.join(sample_variant_dir, "snps.all.vcf")
-                
+                out_variant_indel_sample = os.path.join(
+                    sample_variant_dir, "snps.indel.vcf")
+                out_variant_all_sample = os.path.join(
+                    sample_variant_dir, "snps.all.vcf")
 
                 if os.path.isfile(out_variant_indel_sample):
-                    logger.info(YELLOW + DIM + out_variant_indel_sample + " EXIST\nOmmiting indel filtering in sample " + sample + END_FORMATTING)
+                    logger.info(YELLOW + DIM + out_variant_indel_sample +
+                                " EXIST\nOmmiting indel filtering in sample " + sample + END_FORMATTING)
                 else:
-                    logger.info(GREEN + "Filtering INDELS in " + sample + END_FORMATTING)
+                    logger.info(GREEN + "Filtering INDELS in " +
+                                sample + END_FORMATTING)
                     extract_indels(output_vcf)
 
                 if os.path.isfile(out_variant_all_sample):
-                    logger.info(YELLOW + DIM + out_variant_all_sample + " EXIST\nOmmiting vcf combination in sample " + sample + END_FORMATTING)
+                    logger.info(YELLOW + DIM + out_variant_all_sample +
+                                " EXIST\nOmmiting vcf combination in sample " + sample + END_FORMATTING)
                 else:
-                    logger.info(GREEN + "Combining vcf in " + sample + END_FORMATTING)
+                    logger.info(GREEN + "Combining vcf in " +
+                                sample + END_FORMATTING)
                     merge_vcf(output_vcf_sub, out_variant_indel_sample)
-                
-                
+
                 #VARIANT FORMAT ADAPTATION TO IVAR ##################
                 #####################################################
-                out_variant_tsv_file = os.path.join(sample_variant_dir, 'snps.all.ivar.tsv')
-                
+                out_variant_tsv_file = os.path.join(
+                    sample_variant_dir, 'snps.all.ivar.tsv')
 
                 if os.path.isfile(out_variant_tsv_file):
-                    logger.info(YELLOW + DIM + out_variant_tsv_file + " EXIST\nOmmiting format adaptation for sample " + sample + END_FORMATTING)
+                    logger.info(YELLOW + DIM + out_variant_tsv_file +
+                                " EXIST\nOmmiting format adaptation for sample " + sample + END_FORMATTING)
                 else:
-                    logger.info(GREEN + "Adapting variants format in sample " + sample + END_FORMATTING)
+                    logger.info(
+                        GREEN + "Adapting variants format in sample " + sample + END_FORMATTING)
                     prior = datetime.datetime.now()
-                    vcf_to_ivar_tsv(out_variant_all_sample, out_variant_tsv_file)
+                    vcf_to_ivar_tsv(out_variant_all_sample,
+                                    out_variant_tsv_file)
                     after = datetime.datetime.now()
                     print(("Done with function in: %s" % (after - prior)))
-                    
 
             ########################CREATE STATS AND QUALITY FILTERS########################################################################
             ################################################################################################################################
@@ -313,49 +361,59 @@ def main():
             check_create_dir(out_stats_dir)
             check_create_dir(out_stats_bamstats_dir)
             out_bamstats_name = sample + ".bamstats"
-            out_bamstats_file = os.path.join(out_stats_bamstats_dir, out_bamstats_name)
+            out_bamstats_file = os.path.join(
+                out_stats_bamstats_dir, out_bamstats_name)
             bam_sample_file = os.path.join(sample_variant_dir, sample + ".bam")
 
             if os.path.isfile(out_bamstats_file):
-                logger.info(YELLOW + DIM + out_bamstats_file + " EXIST\nOmmiting Bamstats for  sample " + sample + END_FORMATTING)
+                logger.info(YELLOW + DIM + out_bamstats_file +
+                            " EXIST\nOmmiting Bamstats for  sample " + sample + END_FORMATTING)
             else:
-                logger.info(GREEN + "Creating bamstats in sample " + sample + END_FORMATTING)
-                create_bamstat(bam_sample_file, out_stats_bamstats_dir, sample, threads=args.threads)
+                logger.info(GREEN + "Creating bamstats in sample " +
+                            sample + END_FORMATTING)
+                create_bamstat(
+                    bam_sample_file, out_stats_bamstats_dir, sample, threads=args.threads)
 
             #CREATE Bamstats#######################################
             #######################################################
             check_create_dir(out_stats_coverage_dir)
             out_coverage_name = sample + ".cov"
-            out_coverage_file = os.path.join(out_stats_coverage_dir, out_coverage_name)
+            out_coverage_file = os.path.join(
+                out_stats_coverage_dir, out_coverage_name)
 
             if os.path.isfile(out_coverage_file):
-                logger.info(YELLOW + DIM + out_coverage_file + " EXIST\nOmmiting Bamstats for  sample " + sample + END_FORMATTING)
+                logger.info(YELLOW + DIM + out_coverage_file +
+                            " EXIST\nOmmiting Bamstats for  sample " + sample + END_FORMATTING)
             else:
-                logger.info(GREEN + "Creating coverage in sample " + sample + END_FORMATTING)
-                create_coverage(bam_sample_file, out_stats_coverage_dir, sample)
+                logger.info(GREEN + "Creating coverage in sample " +
+                            sample + END_FORMATTING)
+                create_coverage(bam_sample_file,
+                                out_stats_coverage_dir, sample)
 
-
-    ###############################coverage OUTPUT SUMMARY
+    # coverage OUTPUT SUMMARY
     ######################################################
-    logger.info(GREEN + "Creating summary report for coverage result in group " + group_name + END_FORMATTING)
+    logger.info(GREEN + "Creating summary report for coverage result in group " +
+                group_name + END_FORMATTING)
     obtain_group_cov_stats(out_stats_dir, group_name)
 
-    #####################READS and VARIANTS OUTPUT SUMMARY
+    # READS and VARIANTS OUTPUT SUMMARY
     ######################################################
-    logger.info(GREEN + "Creating overal summary report in group " + group_name + END_FORMATTING)
+    logger.info(GREEN + "Creating overal summary report in group " +
+                group_name + END_FORMATTING)
     obtain_overal_stats(output, group_name)
 
-    ######################################REMOVE UNCOVERED
+    # REMOVE UNCOVERED
     ##############################################################################################################################
     #logger.info(GREEN + "Removing low quality samples in group " + group_name + END_FORMATTING)
     #remove_low_quality(output, min_coverage=args.mincoverage, min_hq_snp=args.min_snp, type_remove='Uncovered')
 
     #ANNOTATION WITH SNPEFF AND USER INPUT ##############
     #####################################################
-    logger.info("\n\n" + BLUE + BOLD + "STARTING ANNOTATION IN GROUP: " + group_name + END_FORMATTING + "\n")
+    logger.info("\n\n" + BLUE + BOLD + "STARTING ANNOTATION IN GROUP: " +
+                group_name + END_FORMATTING + "\n")
     check_create_dir(out_annot_dir)
     check_create_dir(out_annot_snpeff_dir)
-    ####SNPEFF
+    # SNPEFF
     if args.snpeff_database != False:
         for root, _, files in os.walk(out_variant_dir):
             if root == out_variant_dir:
@@ -363,21 +421,26 @@ def main():
                     if name == 'snps.all.vcf':
                         sample = root.split('/')[0-1]
                         filename = os.path.join(root, name)
-                        out_annot_file = os.path.join(out_annot_snpeff_dir, sample + ".annot")
+                        out_annot_file = os.path.join(
+                            out_annot_snpeff_dir, sample + ".annot")
                         if os.path.isfile(out_annot_file):
-                            logger.info(YELLOW + DIM + out_annot_file + " EXIST\nOmmiting snpEff Annotation for sample " + sample + END_FORMATTING)
+                            logger.info(YELLOW + DIM + out_annot_file +
+                                        " EXIST\nOmmiting snpEff Annotation for sample " + sample + END_FORMATTING)
                         else:
-                            logger.info(GREEN + "Annotating sample with snpEff: " + sample + END_FORMATTING)
-                            annotate_snpeff(filename, out_annot_file, database=args.snpeff_database)
+                            logger.info(
+                                GREEN + "Annotating sample with snpEff: " + sample + END_FORMATTING)
+                            annotate_snpeff(
+                                filename, out_annot_file, database=args.snpeff_database)
     else:
-        logger.info(YELLOW + DIM + " No SnpEff database suplied, skipping annotation in group " + group_name + END_FORMATTING)
+        logger.info(YELLOW + DIM + " No SnpEff database suplied, skipping annotation in group " +
+                    group_name + END_FORMATTING)
     # ####USER DEFINED
     # if not args.annot_bed and not args.annot_vcf:
     #     logger.info(YELLOW + BOLD + "Ommiting User Annotation, no BED or VCF files supplied" + END_FORMATTING)
     # else:
     #     check_create_dir(out_annot_user_dir)
     #     for root, _, files in os.walk(out_filtered_freebayes_dir):
-    #         if root == out_filtered_freebayes_dir: 
+    #         if root == out_filtered_freebayes_dir:
     #             for name in files:
     #                 if name.endswith('.tsv'):
     #                     sample = name.split('.')[0]
@@ -385,10 +448,10 @@ def main():
     #                     out_annot_file = os.path.join(out_annot_user_dir, sample + ".tsv")
     #                     user_annotation(filename, out_annot_file, vcf_files=args.annot_vcf, bed_files=args.annot_bed)
 
-
-    ################SNP COMPARISON using tsv variant files
+    # SNP COMPARISON using tsv variant files
     ######################################################
-    logger.info("\n\n" + BLUE + BOLD + "STARTING COMPARISON IN GROUP: " + group_name + END_FORMATTING + "\n")
+    logger.info("\n\n" + BLUE + BOLD + "STARTING COMPARISON IN GROUP: " +
+                group_name + END_FORMATTING + "\n")
 
     check_create_dir(out_compare_dir)
     folder_compare = today + "_" + group_name
@@ -398,33 +461,47 @@ def main():
 
     compare_snp_matrix_recal = full_path_compare + ".revised.final.tsv"
     compare_snp_matrix_recal_intermediate = full_path_compare + ".revised_intermediate.tsv"
-    compare_snp_matrix_recal_mpileup = full_path_compare + ".revised_intermediate_vcf.tsv"
-    compare_snp_matrix_INDEL_intermediate = full_path_compare + ".revised_INDEL_intermediate.tsv"
+    compare_snp_matrix_recal_mpileup = full_path_compare + \
+        ".revised_intermediate_vcf.tsv"
+    compare_snp_matrix_INDEL_intermediate = full_path_compare + \
+        ".revised_INDEL_intermediate.tsv"
 
-    recalibrated_snp_matrix_intermediate = ddbb_create_intermediate(out_variant_dir, out_stats_coverage_dir, min_freq_discard=0.1, min_alt_dp=10)
-    recalibrated_snp_matrix_intermediate.to_csv(compare_snp_matrix_recal_intermediate, sep="\t", index=False)
+    recalibrated_snp_matrix_intermediate = ddbb_create_intermediate(
+        out_variant_dir, out_stats_coverage_dir, min_freq_discard=0.1, min_alt_dp=10)
+    recalibrated_snp_matrix_intermediate.to_csv(
+        compare_snp_matrix_recal_intermediate, sep="\t", index=False)
 
-    recalibrated_snp_matrix_mpileup = recalibrate_ddbb_vcf_intermediate(compare_snp_matrix_recal_intermediate, out_variant_dir, min_cov_low_freq = 10)
-    recalibrated_snp_matrix_mpileup.to_csv(compare_snp_matrix_recal_mpileup, sep="\t", index=False)
-
+    recalibrated_snp_matrix_mpileup = recalibrate_ddbb_vcf_intermediate(
+        compare_snp_matrix_recal_intermediate, out_variant_dir, min_cov_low_freq=10)
+    recalibrated_snp_matrix_mpileup.to_csv(
+        compare_snp_matrix_recal_mpileup, sep="\t", index=False)
 
     # recalibrated_revised_df = revised_df(recalibrated_snp_matrix_mpileup, path_compare, min_freq_include=0.8, min_threshold_discard_uncov_sample=0.4, min_threshold_discard_uncov_pos=0.4, min_threshold_discard_htz_sample=0.4, min_threshold_discard_htz_pos=0.4, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True)
     # recalibrated_revised_df.to_csv(compare_snp_matrix_recal, sep="\t", index=False)
 
-    compare_snp_matrix_INDEL_intermediate_df = remove_position_range(recalibrated_snp_matrix_mpileup)
-    compare_snp_matrix_INDEL_intermediate_df.to_csv(compare_snp_matrix_INDEL_intermediate, sep="\t", index=False)
+    compare_snp_matrix_INDEL_intermediate_df = remove_position_range(
+        recalibrated_snp_matrix_mpileup)
+    compare_snp_matrix_INDEL_intermediate_df.to_csv(
+        compare_snp_matrix_INDEL_intermediate, sep="\t", index=False)
 
     #recalibrated_revised_df = revised_df(recalibrated_snp_matrix_intermediate, out_compare_dir, min_freq_include=0.8, min_threshold_discard_uncov_sample=0.4, min_threshold_discard_uncov_pos=0.4, min_threshold_discard_htz_sample=0.4, min_threshold_discard_htz_pos=0.4, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True)
 
-    recalibrated_revised_INDEL_df = revised_df(compare_snp_matrix_INDEL_intermediate_df, path_compare, min_freq_include=0.8, min_threshold_discard_uncov_sample=0.6, min_threshold_discard_uncov_pos=0.6, min_threshold_discard_htz_sample=0.6, min_threshold_discard_htz_pos=0.6, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True)
-    recalibrated_revised_INDEL_df.to_csv(compare_snp_matrix_recal, sep="\t", index=False)
+    # Extract all positions marked as complex
+    complex_variants = extract_complex_list(out_variant_dir)
+
+    recalibrated_revised_INDEL_df = revised_df(compare_snp_matrix_INDEL_intermediate_df, path_compare, complex_pos=complex_variants, min_freq_include=0.8, min_threshold_discard_uncov_sample=0.6, min_threshold_discard_uncov_pos=0.6,
+                                               min_threshold_discard_htz_sample=0.6, min_threshold_discard_htz_pos=0.6, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True, windos_size_discard=2)
+    recalibrated_revised_INDEL_df.to_csv(
+        compare_snp_matrix_recal, sep="\t", index=False)
 
     ddtb_compare(compare_snp_matrix_recal, distance=5)
 
-    logger.info("\n\n" + MAGENTA + BOLD + "COMPARING FINISHED IN GROUP: " + group_name + END_FORMATTING + "\n")
+    logger.info("\n\n" + MAGENTA + BOLD + "COMPARING FINISHED IN GROUP: " +
+                group_name + END_FORMATTING + "\n")
 
-    
-    logger.info("\n\n" + MAGENTA + BOLD + "#####END OF PIPELINE AUTOSNIPPY ANALYSIS#####" + END_FORMATTING + "\n")
+    logger.info("\n\n" + MAGENTA + BOLD +
+                "#####END OF PIPELINE AUTOSNIPPY ANALYSIS#####" + END_FORMATTING + "\n")
+
 
 if __name__ == '__main__':
     try:

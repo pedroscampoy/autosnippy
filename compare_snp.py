@@ -59,6 +59,37 @@ def get_arguments():
     return arguments
 
 
+def add_window_distance(vcf_df, window_size=10):
+    """
+    Add a column indicating the maximum number of SNPs in a windows of 10 or supplied distance
+    """
+    list_pos = vcf_df.POS.to_list()  # all positions
+    set_pos = set(list_pos)  # to set for later comparing
+    # max to iter over positions (independent from reference)
+    max_pos = max(vcf_df.POS.to_list())
+
+    all_list = list(range(1, max_pos + 1))  # create a list to slide one by one
+
+    df_header = "window_" + str(window_size)
+
+    vcf_df[df_header] = 1  # Create all 1 by default
+
+    # Slide over windows
+    for i in range(0, max_pos, 1):
+        # This splits the list in windows of determined length
+        window_pos = all_list[i:i+window_size]
+        set_window_pos = set(window_pos)
+        # How many known positions are in every window for later clasification
+        num_conglomerate = set_pos & set_window_pos
+
+        if len(num_conglomerate) > 1:
+            for i in num_conglomerate:
+                # Retrieve index with the known position
+                index = vcf_df.index[vcf_df["POS"] == i][0]
+                if vcf_df.loc[index, df_header] < len(num_conglomerate):
+                    vcf_df.loc[index, df_header] = len(num_conglomerate)
+
+
 def check_file_exists(file_name):
     """
         Check file exist and is not 0 Kb, if not program exit.
@@ -142,6 +173,21 @@ def extract_uncovered(cov_file, min_total_depth=4):
     df = df[df[sample] == 0]
     df = df.replace(0, '!')
     return df
+
+
+def extract_complex_list(variant_dir):
+    all_complex = []
+    for root, _, files in os.walk(variant_dir):
+        for name in files:
+            if name == "snps.all.ivar.tsv":
+                sample = root.split("/")[-1]
+                #logger.debug("Obtaining complex in: " + sample)
+                filename = os.path.join(root, name)
+                df = pd.read_csv(filename, sep="\t")
+                sample_complex = df[~df.OLDVAR.isna()]['POS'].tolist()
+                sample_complex = [int(x) for x in sample_complex]
+                all_complex = all_complex + sample_complex
+    return sorted(set(all_complex))
 
 
 def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, min_alt_dp=10):
@@ -563,7 +609,7 @@ def matrix_to_cluster(pairwise_file, matrix_file, distance=0):
     final_cluster.to_csv(final_cluster_file, sep='\t', index=False)
 
 
-def revised_df(df, out_dir=False, min_freq_include=0.8, min_threshold_discard_uncov_sample=0.4, min_threshold_discard_uncov_pos=0.4, min_threshold_discard_htz_sample=0.4, min_threshold_discard_htz_pos=0.4, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True):
+def revised_df(df, out_dir=False, complex_pos=False, min_freq_include=0.8, min_threshold_discard_uncov_sample=0.4, min_threshold_discard_uncov_pos=0.4, min_threshold_discard_htz_sample=0.4, min_threshold_discard_htz_pos=0.4, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True, windos_size_discard=2):
     if remove_faulty == True:
 
         uncovered_positions = df.iloc[:, 3:].apply(lambda x:  sum(
@@ -584,9 +630,17 @@ def revised_df(df, out_dir=False, min_freq_include=0.8, min_threshold_discard_un
         faulty_samples = report_samples['sample'][(report_samples.uncov_fract >= min_threshold_discard_uncov_sample) | (
             report_samples.htz_frac >= min_threshold_discard_htz_sample) | (report_samples.faulty_frac >= min_threshold_discard_all_sample)].tolist()
 
+        # Calculate close SNPS/INDELS and remove those with 2 or more mutations in 10bp
+        df['POS'] = df.apply(lambda x: x.Position.split('|')[2], axis=1)
+        df['POS'] = df['POS'].astype(int)
+        df = df.sort_values("POS")
+        add_window_distance(df)
+
         if out_dir != False:
             out_dir = os.path.abspath(out_dir)
             report_samples_file = os.path.join(out_dir, 'report_samples.tsv')
+            report_samples_windows = os.path.join(
+                out_dir, 'report_windows.tsv')
             report_faulty_samples_file = os.path.join(
                 out_dir, 'faulty_samples.tsv')
             report_positions_file = os.path.join(
@@ -603,6 +657,8 @@ def revised_df(df, out_dir=False, min_freq_include=0.8, min_threshold_discard_un
             with open(report_faulty_positions_file, 'w+') as f2:
                 f2.write(('\n').join(faulty_positions))
 
+            df.to_csv(report_samples_windows, sep="\t")
+
         if drop_positions == True:
             df = df[~df.Position.isin(faulty_positions)]
         if drop_samples == True:
@@ -611,12 +667,27 @@ def revised_df(df, out_dir=False, min_freq_include=0.8, min_threshold_discard_un
         logger.info('FAULTY POSITIONS:\n{}\n\nFAULTY SAMPLES:\n{}'.format(
             ("\n").join(faulty_positions), ("\n").join(faulty_samples)))
 
+    # Remove close mutations
+    df = df[df.window_10 <= 1]
+
+    clustered_positions = df['POS'][df.window_10 > 1].tolist()
+    logger.debug('CLUSTERED POSITIONS' + "\n" +
+                 (',').join(clustered_positions))
+
+    # Remove complex variants
+    if complex_pos:
+        logger.info('Removing complex positions')
+        logger.debug(complex_pos)
+        df = df[~df.POS.isin(complex_pos)]
+
     # Uncovered to 0
     # Number of valid to remove o valid and replace lowfreq
     df['valid'] = df.apply(lambda x: sum(
         [i != '?' and i != '!' and float(i) >= min_freq_include for i in x[3:]]), axis=1)
     df = df[df.valid >= 1]
     df = df.drop('valid', axis=1)
+    df = df.drop('window_10', axis=1)
+    df = df.drop('POS', axis=1)
 
     if out_dir != False:
         df.to_csv(intermediate_cleaned_file, sep="\t", index=False)
@@ -770,10 +841,11 @@ def recheck_variant_rawvcf_intermediate(reference_id, position, alt_snp, sample,
             for line in f:
                 if line.startswith('#CHROM'):
                     headers = line.split("\t")
-                elif str(position) in line:
-                    logger.info('recalibrating position: {}'.format(position))
+                elif str(position) in line and not line.startswith('#'):
                     line_split = line.split("\t")
                     if line_split[1] == str(position):
+                        logger.info(
+                            'recalibrating position: {} in sample: {}'.format(position, sample))
                         position_present = True
                         vcf_reference = line_split[0]
                         vcf_position = line_split[1]
@@ -790,23 +862,32 @@ def recheck_variant_rawvcf_intermediate(reference_id, position, alt_snp, sample,
                         except:
                             vcf_alt_depth = int(
                                 value_params[alt_depth_indef].split(',')[-1])
+                            vcf_alt_base = vcf_alt_base.split(',')[-1]
                         vcf_alt_freq = vcf_alt_depth/vcf_depth
 
         if position_present == False:
+            logger.debug('Position: {} not present in {}'.format(
+                position, filename))
             return 0
         else:
-            logger.debug('RECALIBRATE: POS: {},  ALT: {}, DP: {}, FREQ: {}'.format(
-                vcf_position, vcf_alt_base, vcf_depth, vcf_alt_freq))
+            logger.debug('RECALIBRATE: CHROM: {} POS: {},  ALT: {}, DP: {}, FREQ: {}\nORI==> CHROM: {} POS: {}, ALT: {}'.format(
+                vcf_reference, vcf_position, vcf_alt_base, vcf_depth, vcf_alt_freq, reference_id, position, alt_snp))
 
             if reference_id != vcf_reference:
                 logger.info('ERROR: References are different')
                 sys.exit(1)
-            elif position == vcf_position and alt_snp == vcf_alt_base:
+            elif str(position) == str(vcf_position) and alt_snp == vcf_alt_base:
                 if vcf_depth <= min_cov_low_freq and vcf_depth > 0:
+                    logger.debug('Position: {} LOWDEPTH: {}'.format(
+                        vcf_position, vcf_alt_freq))
                     return '?'
                 if vcf_alt_freq > 0.1:
+                    logger.debug('Position: {} HTZ with freq > 0.1: {}'.format(
+                        vcf_position, vcf_alt_freq))
                     return vcf_alt_freq
             else:
+                logger.debug('ELSE POS: {} SAMPLE: {}'.format(
+                    vcf_position, sample))
                 return 0
 
 
