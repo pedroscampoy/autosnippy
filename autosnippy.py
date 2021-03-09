@@ -19,7 +19,7 @@ from misc import check_file_exists, extract_sample, check_create_dir, execute_su
 from preprocessing import fastqc_quality, fastp_trimming, format_html_image
 from bam_variants import run_snippy, extract_indels, merge_vcf, create_bamstat, create_coverage
 from vcf_process import filter_tsv_variants, vcf_to_ivar_tsv
-from annotation import annotate_snpeff, user_annotation
+from annotation import annotate_snpeff, user_annotation, rename_reference_snpeff
 from compare_snp import ddtb_add, ddtb_compare, ddbb_create_intermediate, revised_df, recalibrate_ddbb_vcf_intermediate, \
     remove_position_range, extract_complex_list
 
@@ -408,21 +408,23 @@ def main():
     # SNPEFF
     if args.snpeff_database != False:
         for root, _, files in os.walk(out_variant_dir):
-            if root == out_variant_dir:
-                for name in files:
-                    if name == 'snps.all.vcf':
-                        sample = root.split('/')[0-1]
-                        filename = os.path.join(root, name)
-                        out_annot_file = os.path.join(
-                            out_annot_snpeff_dir, sample + ".annot")
-                        if os.path.isfile(out_annot_file):
-                            logger.info(YELLOW + DIM + out_annot_file +
-                                        " EXIST\nOmmiting snpEff Annotation for sample " + sample + END_FORMATTING)
-                        else:
-                            logger.info(
-                                GREEN + "Annotating sample with snpEff: " + sample + END_FORMATTING)
-                            annotate_snpeff(
-                                filename, out_annot_file, database=args.snpeff_database)
+            for name in files:
+                if name == 'snps.all.vcf':
+                    sample = root.split('/')[-1]
+                    filename = os.path.join(root, name)
+                    chrom_filename = os.path.join(
+                        root, 'snps.all.chromosome.vcf')
+                    out_annot_file = os.path.join(
+                        out_annot_snpeff_dir, sample + ".annot")
+                    if os.path.isfile(out_annot_file):
+                        logger.info(YELLOW + DIM + out_annot_file +
+                                    " EXIST\nOmmiting snpEff Annotation for sample " + sample + END_FORMATTING)
+                    else:
+                        logger.info(
+                            GREEN + "Annotating sample with snpEff: " + sample + END_FORMATTING)
+                        rename_reference_snpeff(filename, chrom_filename)
+                        annotate_snpeff(chrom_filename, out_annot_file,
+                                        database=args.snpeff_database)
     else:
         logger.info(YELLOW + DIM + " No SnpEff database suplied, skipping annotation in group " +
                     group_name + END_FORMATTING)
