@@ -38,7 +38,7 @@ def import_VCF42_freebayes_to_df(vcf_file, sep='\t'):
             if not line.startswith("#"):
                 line_split = line.split(sep)[:8]
                 info = line_split[-1].split(";")
-                for index, field in enumerate(extra_fields):
+                for field in extra_fields:
                     extra_field_list.append(
                         [x.split("=")[-1] for x in info if field in x][0])
                 df.loc[len(df)] = line_split[:7] + extra_field_list

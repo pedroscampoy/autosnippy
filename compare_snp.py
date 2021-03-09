@@ -138,6 +138,7 @@ def import_tsv_variants(tsv_file, sample, min_total_depth=4, min_alt_dp=4, only_
         df = df.drop(['TYPE'], axis=1)
         return df
     else:
+        df = df.drop(['TYPE'], axis=1)
         return df
 
 
@@ -160,6 +161,7 @@ def extract_lowfreq(tsv_file, sample, min_total_depth=4, min_alt_dp=4, min_freq_
         df = df.drop(['TYPE'], axis=1)
         return df
     else:
+        df = df.drop(['TYPE'], axis=1)
         return df
 
 
@@ -181,7 +183,7 @@ def extract_complex_list(variant_dir):
         for name in files:
             if name == "snps.all.ivar.tsv":
                 sample = root.split("/")[-1]
-                #logger.debug("Obtaining complex in: " + sample)
+                logger.debug("Obtaining complex in: " + sample)
                 filename = os.path.join(root, name)
                 df = pd.read_csv(filename, sep="\t")
                 sample_complex = df[~df.OLDVAR.isna()]['POS'].tolist()
@@ -190,7 +192,7 @@ def extract_complex_list(variant_dir):
     return sorted(set(all_complex))
 
 
-def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, min_alt_dp=10):
+def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, min_alt_dp=10, only_snp=False):
     df = pd.DataFrame(columns=['REGION', 'POS', 'REF', 'ALT'])
     # Merge all raw
     for root, _, files in os.walk(variant_dir):
@@ -200,7 +202,7 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
                 logger.debug("Adding: " + sample)
                 filename = os.path.join(root, name)
                 dfv = import_tsv_variants(
-                    filename, sample, min_total_depth=4, min_alt_dp=4, only_snp=True)
+                    filename, sample, min_total_depth=4, min_alt_dp=4, only_snp=only_snp)
                 df = df.merge(dfv, how='outer')
     # Rounf frequencies
     df = df.round(2)
@@ -221,7 +223,7 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
                 sample = root.split("/")[-1]
                 logger.debug("Adding lowfreqs: " + sample)
                 dfl = extract_lowfreq(
-                    filename, sample, min_total_depth=4, min_alt_dp=min_alt_dp, only_snp=True)
+                    filename, sample, min_total_depth=4, min_alt_dp=min_alt_dp, only_snp=only_snp)
                 df[sample].update(df[['REGION', 'POS', 'REF', 'ALT']].merge(
                     dfl, on=['REGION', 'POS', 'REF', 'ALT'], how='left')[sample])
 
@@ -876,6 +878,13 @@ def recheck_variant_rawvcf_intermediate(reference_id, position, alt_snp, sample,
             if reference_id != vcf_reference:
                 logger.info('ERROR: References are different')
                 sys.exit(1)
+            elif (len(alt_snp) > 1 and str(position) == str(vcf_position)) or (len(vcf_reference) > 1 and str(position) == str(vcf_position)):
+                if vcf_depth <= min_cov_low_freq and vcf_depth > 0:
+                    logger.debug('Position: {} LOWDEPTH: {}'.format(
+                        vcf_position, vcf_alt_freq))
+                    return '?'
+                else:
+                    return vcf_alt_freq
             elif str(position) == str(vcf_position) and alt_snp == vcf_alt_base:
                 if vcf_depth <= min_cov_low_freq and vcf_depth > 0:
                     logger.debug('Position: {} LOWDEPTH: {}'.format(
@@ -1214,7 +1223,7 @@ if __name__ == '__main__':
             compare_snp_matrix_recal_mpileup = group_compare + \
                 ".revised_intermediate_mpileup.tsv"
             recalibrated_snp_matrix_intermediate = ddbb_create_intermediate(
-                input_dir, coverage_dir, min_freq_discard=0.1, min_alt_dp=10)
+                input_dir, coverage_dir, min_freq_discard=0.1, min_alt_dp=10, only_snp=False)
             recalibrated_snp_matrix_intermediate.to_csv(
                 compare_snp_matrix_recal_intermediate, sep="\t", index=False)
 

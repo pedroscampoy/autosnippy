@@ -209,15 +209,7 @@ def main():
     out_qc_pre_dir = os.path.join(out_qc_dir, "raw")  # subfolder
     # out_qc_post_dir = os.path.join(out_qc_dir, "processed") #subfolder
     #out_trim_dir = os.path.join(output, "Trimmed")
-    out_map_dir = os.path.join(output, "Bam")
     out_variant_dir = os.path.join(output, "Variants")
-    out_variant_ivar_dir = os.path.join(
-        out_variant_dir, "ivar_raw")  # subfolder
-    out_filtered_ivar_dir = os.path.join(
-        out_variant_dir, "ivar_filtered")  # subfolder
-    out_consensus_dir = os.path.join(output, "Consensus")
-    out_consensus_ivar_dir = os.path.join(
-        out_consensus_dir, "ivar")  # subfolder
 
     out_stats_dir = os.path.join(output, "Stats")
     out_stats_bamstats_dir = os.path.join(
@@ -268,24 +260,24 @@ def main():
                 ######################################################
                 check_create_dir(out_qc_dir)
 
-                # out_qc_raw_name_r1 = (".").join(r1_file.split(
-                #     '/')[-1].split('.')[0:-2]) + '_fastqc.html'
-                # out_qc_raw_name_r2 = (".").join(r2_file.split(
-                #     '/')[-1].split('.')[0:-2]) + '_fastqc.html'
-                # output_qc_raw_file_r1 = os.path.join(
-                #     out_qc_pre_dir, out_qc_raw_name_r1)
-                # output_qc_raw_file_r2 = os.path.join(
-                #     out_qc_pre_dir, out_qc_raw_name_r2)
+                out_qc_raw_name_r1 = (".").join(r1_file.split(
+                    '/')[-1].split('.')[0:-2]) + '_fastqc.html'
+                out_qc_raw_name_r2 = (".").join(r2_file.split(
+                    '/')[-1].split('.')[0:-2]) + '_fastqc.html'
+                output_qc_raw_file_r1 = os.path.join(
+                    out_qc_pre_dir, out_qc_raw_name_r1)
+                output_qc_raw_file_r2 = os.path.join(
+                    out_qc_pre_dir, out_qc_raw_name_r2)
 
-                # if os.path.isfile(output_qc_raw_file_r1) and os.path.isfile(output_qc_raw_file_r2):
-                #     logger.info(YELLOW + DIM + output_qc_raw_file_r1 +
-                #                 " EXIST\nOmmiting QC for sample " + sample + END_FORMATTING)
-                # else:
-                #     logger.info(
-                #         GREEN + "Checking quality in sample " + sample + END_FORMATTING)
-                #     logger.info("R1: " + r1_file + "\nR2: " + r2_file)
-                #     fastqc_quality(r1_file, r2_file,
-                #                    out_qc_pre_dir, args.threads)
+                if os.path.isfile(output_qc_raw_file_r1) and os.path.isfile(output_qc_raw_file_r2):
+                    logger.info(YELLOW + DIM + output_qc_raw_file_r1 +
+                                " EXIST\nOmmiting QC for sample " + sample + END_FORMATTING)
+                else:
+                    logger.info(
+                        GREEN + "Checking quality in sample " + sample + END_FORMATTING)
+                    logger.info("R1: " + r1_file + "\nR2: " + r2_file)
+                    fastqc_quality(r1_file, r2_file,
+                                   out_qc_pre_dir, args.threads)
 
                 """
                 TODO: Human filter
@@ -298,21 +290,21 @@ def main():
                     sample_variant_dir, "snps.subs.vcf")
                 output_vcf = os.path.join(sample_variant_dir, "snps.vcf")
 
-                # if os.path.isfile(output_vcf_sub) and os.path.isfile(output_vcf):
-                #     logger.info(YELLOW + DIM + output_vcf +
-                #                 " EXIST\nOmmiting Variant calling in  " + sample + END_FORMATTING)
-                # else:
-                #     logger.info(
-                #         GREEN + "Calling variants with snippy " + sample + END_FORMATTING)
-                #     run_snippy(r1_file, r2_file, reference, out_variant_dir, sample,
-                #                threads=args.threads, minqual=20, minfrac=0.1, mincov=1)
-                #     old_bam = os.path.join(sample_variant_dir, "snps.bam")
-                #     old_bai = os.path.join(sample_variant_dir, "snps.bam.bai")
-                #     new_bam = os.path.join(sample_variant_dir, sample + ".bam")
-                #     new_bai = os.path.join(
-                #         sample_variant_dir, sample + ".bam.bai")
-                #     os.rename(old_bam, new_bam)
-                #     os.rename(old_bai, new_bai)
+                if os.path.isfile(output_vcf_sub) and os.path.isfile(output_vcf):
+                    logger.info(YELLOW + DIM + output_vcf +
+                                " EXIST\nOmmiting Variant calling in  " + sample + END_FORMATTING)
+                else:
+                    logger.info(
+                        GREEN + "Calling variants with snippy " + sample + END_FORMATTING)
+                    run_snippy(r1_file, r2_file, reference, out_variant_dir, sample,
+                               threads=args.threads, minqual=10, minfrac=0.1, mincov=1)
+                    old_bam = os.path.join(sample_variant_dir, "snps.bam")
+                    old_bai = os.path.join(sample_variant_dir, "snps.bam.bai")
+                    new_bam = os.path.join(sample_variant_dir, sample + ".bam")
+                    new_bai = os.path.join(
+                        sample_variant_dir, sample + ".bam.bai")
+                    os.rename(old_bam, new_bam)
+                    os.rename(old_bai, new_bai)
 
                 #VARIANT FORMAT COMBINATION (REMOVE COMPLEX) ########
                 #####################################################
@@ -467,7 +459,7 @@ def main():
         ".revised_INDEL_intermediate.tsv"
 
     recalibrated_snp_matrix_intermediate = ddbb_create_intermediate(
-        out_variant_dir, out_stats_coverage_dir, min_freq_discard=0.1, min_alt_dp=10)
+        out_variant_dir, out_stats_coverage_dir, min_freq_discard=0.1, min_alt_dp=10, only_snp=False)
     recalibrated_snp_matrix_intermediate.to_csv(
         compare_snp_matrix_recal_intermediate, sep="\t", index=False)
 
@@ -483,8 +475,6 @@ def main():
         recalibrated_snp_matrix_mpileup)
     compare_snp_matrix_INDEL_intermediate_df.to_csv(
         compare_snp_matrix_INDEL_intermediate, sep="\t", index=False)
-
-    #recalibrated_revised_df = revised_df(recalibrated_snp_matrix_intermediate, out_compare_dir, min_freq_include=0.8, min_threshold_discard_uncov_sample=0.4, min_threshold_discard_uncov_pos=0.4, min_threshold_discard_htz_sample=0.4, min_threshold_discard_htz_pos=0.4, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True)
 
     # Extract all positions marked as complex
     complex_variants = extract_complex_list(out_variant_dir)
