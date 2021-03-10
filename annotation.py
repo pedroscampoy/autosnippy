@@ -149,9 +149,8 @@ def annotate_snpeff(input_vcf_file, output_annot_file, database='NC_045512.2'):
     # Execure snpEff
     snpeff_execution(input_vcf_file, output_annot_file, database=database)
     # Format annot vcf and remove vcf
-    #annot_df = import_annot_to_pandas(output_annot_file)
-    #annot_df.to_csv(output_annot_file, sep="\t", index=False)
-    # os.remove(output_vcf_file)
+    annot_df = import_annot_to_pandas(output_annot_file)
+    annot_df.to_csv(output_annot_file, sep="\t", index=False)
 
 
 def annotate_pangolin(input_file, output_folder, output_filename, threads=8, max_ambig=0.6):

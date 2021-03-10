@@ -19,7 +19,7 @@ from misc import check_file_exists, extract_sample, check_create_dir, execute_su
 from preprocessing import fastqc_quality, fastp_trimming, format_html_image
 from bam_variants import run_snippy, extract_indels, merge_vcf, create_bamstat, create_coverage
 from vcf_process import filter_tsv_variants, vcf_to_ivar_tsv
-from annotation import annotate_snpeff, user_annotation, rename_reference_snpeff
+from annotation import annotate_snpeff, user_annotation, rename_reference_snpeff, report_samples_html
 from compare_snp import ddtb_add, ddtb_compare, ddbb_create_intermediate, revised_df, recalibrate_ddbb_vcf_intermediate, \
     remove_position_range, extract_complex_list
 
@@ -428,19 +428,68 @@ def main():
     else:
         logger.info(YELLOW + DIM + " No SnpEff database suplied, skipping annotation in group " +
                     group_name + END_FORMATTING)
-    # ####USER DEFINED
-    # if not args.annot_bed and not args.annot_vcf:
-    #     logger.info(YELLOW + BOLD + "Ommiting User Annotation, no BED or VCF files supplied" + END_FORMATTING)
-    # else:
-    #     check_create_dir(out_annot_user_dir)
-    #     for root, _, files in os.walk(out_filtered_freebayes_dir):
-    #         if root == out_filtered_freebayes_dir:
-    #             for name in files:
-    #                 if name.endswith('.tsv'):
-    #                     sample = name.split('.')[0]
-    #                     filename = os.path.join(root, name)
-    #                     out_annot_file = os.path.join(out_annot_user_dir, sample + ".tsv")
-    #                     user_annotation(filename, out_annot_file, vcf_files=args.annot_vcf, bed_files=args.annot_bed)
+    # USER DEFINED
+    if not args.annot_bed and not args.annot_vcf:
+        logger.info(
+            YELLOW + BOLD + "Ommiting User Annotation, no BED or VCF files supplied" + END_FORMATTING)
+    else:
+        check_create_dir(out_annot_user_dir)
+        for root, _, files in os.walk(out_variant_ivar_dir):
+            if root == out_variant_ivar_dir:
+                for name in files:
+                    if name.endswith('.tsv'):
+                        sample = name.split('.')[0]
+                        logger.info(
+                            'User bed/vcf annotation in sample {}'.format(sample))
+                        filename = os.path.join(root, name)
+                        out_annot_file = os.path.join(
+                            out_annot_user_dir, sample + ".tsv")
+                        user_annotation(
+                            filename, out_annot_file, vcf_files=args.annot_vcf, bed_files=args.annot_bed)
+
+    # USER AA DEFINED
+    if not args.annot_aa:
+        logger.info(
+            YELLOW + BOLD + "Ommiting User aa Annotation, no AA files supplied" + END_FORMATTING)
+    else:
+        check_create_dir(out_annot_user_aa_dir)
+        for root, _, files in os.walk(out_annot_snpeff_dir):
+            if root == out_annot_snpeff_dir:
+                for name in files:
+                    if name.endswith('.annot'):
+                        sample = name.split('.')[0]
+                        logger.info(
+                            'User aa annotation in sample {}'.format(sample))
+                        filename = os.path.join(root, name)
+                        out_annot_aa_file = os.path.join(
+                            out_annot_user_aa_dir, sample + ".tsv")
+                        if os.path.isfile(out_annot_aa_file):
+                            user_annotation_aa(
+                                out_annot_aa_file, out_annot_aa_file, aa_files=args.annot_aa)
+                        else:
+                            user_annotation_aa(
+                                filename, out_annot_aa_file, aa_files=args.annot_aa)
+
+    # USER AA TO HTML
+    if not args.annot_aa:
+        logger.info(
+            YELLOW + BOLD + "Ommiting User aa Annotation to HTML, no AA files supplied" + END_FORMATTING)
+    else:
+        annotated_samples = []
+        logger.info('Adapting annotation to html in {}'.format(group_name))
+        for root, _, files in os.walk(out_annot_user_aa_dir):
+            if root == out_annot_user_aa_dir:
+                for name in files:
+                    if name.endswith('.tsv'):
+                        sample = name.split('.')[0]
+                        annotated_samples.append(sample)
+                        filename = os.path.join(root, name)
+                        annotation_to_html(filename, sample)
+        annotated_samples = [str(x) for x in annotated_samples]
+        report_samples_html_all = report_samples_html.replace(
+            'ALLSAMPLES', ('","').join(annotated_samples))  # NEW
+        with open(os.path.join(out_annot_user_aa_dir, '00_all_samples.html'), 'w+') as f:
+            f.write(report_samples_html_all)
 
     # SNP COMPARISON using tsv variant files
     ######################################################
