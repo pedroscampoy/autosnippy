@@ -36,7 +36,7 @@ UNDERLINE = '\033[4m'
 RED = '\033[31m'
 GREEN = '\033[32m'
 MAGENTA = '\033[35m'
-BLUE =  '\033[34m'
+BLUE = '\033[34m'
 CYAN = '\033[36m'
 YELLOW = '\033[93m'
 DIM = '\033[2m'
@@ -44,26 +44,51 @@ DIM = '\033[2m'
 
 def get_arguments():
 
-    parser = argparse.ArgumentParser(prog = 'snptb.py', description= 'Pipeline to call variants (SNVs) with any non model organism. Specialised in Mycobacterium Tuberculosis')
-    
+    parser = argparse.ArgumentParser(
+        prog='snptb.py', description='Pipeline to call variants (SNVs) with any non model organism. Specialised in Mycobacterium Tuberculosis')
+
     input_group = parser.add_argument_group('Input', 'Input parameters')
 
-    input_group.add_argument('-r', '--r1_file', metavar="reference", type=str, required=True, help='REQUIRED. File to map against')
-    input_group.add_argument('-R', '--r2_file', metavar="sample", type=str, required=True, help='Sample to identify further files')
-    
-    output_group = parser.add_argument_group('Output', 'Required parameter to output results')
+    input_group.add_argument('-r', '--r1_file', metavar="reference",
+                             type=str, required=True, help='REQUIRED. File to map against')
+    input_group.add_argument('-R', '--r2_file', metavar="sample",
+                             type=str, required=True, help='Sample to identify further files')
 
-    output_group.add_argument('-o', '--output', type=str, required=True, help='REQUIRED. Output directory to extract all results')
+    output_group = parser.add_argument_group(
+        'Output', 'Required parameter to output results')
 
-    params_group = parser.add_argument_group('Parameters', 'parameters for diferent stringent conditions')
+    output_group.add_argument('-o', '--output', type=str, required=True,
+                              help='REQUIRED. Output directory to extract all results')
 
-    params_group.add_argument('-c', '--mincov', type=int, required=False, default=20, help='Minimun coverage to add samples into analysis')
-    params_group.add_argument('-T', '--threads', type=str, dest = "threads", required=False, default=4, help='Threads to use')
-    params_group.add_argument('-M', '--memory', type=str, dest = "memory", required=False, default=8, help='MAx memory to use')
+    params_group = parser.add_argument_group(
+        'Parameters', 'parameters for diferent stringent conditions')
+
+    params_group.add_argument('-c', '--mincov', type=int, required=False,
+                              default=20, help='Minimun coverage to add samples into analysis')
+    params_group.add_argument('-T', '--threads', type=str, dest="threads",
+                              required=False, default=4, help='Threads to use')
+    params_group.add_argument('-M', '--memory', type=str, dest="memory",
+                              required=False, default=8, help='MAx memory to use')
 
     arguments = parser.parse_args()
 
     return arguments
+
+
+def refseq_masher(r1_file, r2_file, output_file, threads, max_results=100):
+    """
+    refseq_masher contains --top-n-results 50 -p 16 -o HPR3641322-50.contains2.tsv \
+     HPR3641322-50_S27_L000_R1_001.fastq.gz HPR3641322-50_S27_L000_R2_001.fastq.gz
+    """
+    r1 = os.path.abspath(r1_file)
+    r2 = os.path.abspath(r2_file)
+
+    species_output_dir = obtain_output_dir(args, "Species")
+    check_create_dir(species_output_dir)
+    species_output_name = sample + ".screen.tab"
+    species_output_file = os.path.join(species_output_dir, species_output_name)
+
+    cmd = ["refseq_masher", "screen", "-p", str(threads), mash_database, r1]
 
 
 def zcat_concat_reads(args):
@@ -81,18 +106,18 @@ def zcat_concat_reads(args):
     output_file = os.path.join(output_dir, output_name)
 
     cmd = ["zcat", r1, r2]
-    #execute_subprocess(cmd)
+    # execute_subprocess(cmd)
     with open(output_file, "w+") as outfile:
-        #calculate coverage and save it in th eoutput file
+        # calculate coverage and save it in th eoutput file
         subprocess.run(cmd,
-        stdout=outfile, stderr=subprocess.PIPE, check=True, universal_newlines=True)
-    
+                       stdout=outfile, stderr=subprocess.PIPE, check=True, universal_newlines=True)
+
     return output_file
 
 
 def mash_screen(args, winner=True, r2=False, mash_database="/processing_Data/bioinformatics/references/mash/RefSeq88n.msh"):
-    #https://mash.readthedocs.io/en/latest/index.html
-    #https://gembox.cbcb.umd.edu/mash/refseq.genomes.k21s1000.msh #MASH refseq database
+    # https://mash.readthedocs.io/en/latest/index.html
+    # https://gembox.cbcb.umd.edu/mash/refseq.genomes.k21s1000.msh #MASH refseq database
     # mash screen -w -p 4 ../refseq.genomes.k21s1000.msh 4_R1.fastq.gz 4_R2.fastq.gz > 4.winner.screen.tab
     #identity, shared-hashes, median-multiplicity, p-value, query-ID, query-comment
 
@@ -116,8 +141,8 @@ def mash_screen(args, winner=True, r2=False, mash_database="/processing_Data/bio
     cmd = ["mash", "screen", "-p", str(threads), mash_database, r1]
 
     if winner == True:
-        cmd.insert(2,"-w")
-    #Use both r1 and r2 instead of just r1(faster)
+        cmd.insert(2, "-w")
+    # Use both r1 and r2 instead of just r1(faster)
     if r2 == True:
         cmd.append(r2)
 
@@ -127,29 +152,33 @@ def mash_screen(args, winner=True, r2=False, mash_database="/processing_Data/bio
     param = cmd[1:]
 
     try:
-    #execute_subprocess(cmd)
+        # execute_subprocess(cmd)
         with open(species_output_file, "w+") as outfile:
-            #calculate mash distance and save it in output file
+            # calculate mash distance and save it in output file
             command = subprocess.run(cmd,
-            stdout=outfile, stderr=subprocess.PIPE, universal_newlines=True)
+                                     stdout=outfile, stderr=subprocess.PIPE, universal_newlines=True)
         if command.returncode == 0:
-            logger.info(GREEN + "Program %s successfully executed" % prog + END_FORMATTING)
+            logger.info(GREEN + "Program %s successfully executed" %
+                        prog + END_FORMATTING)
         else:
-            print (RED + BOLD + "Command %s FAILED\n" % prog + END_FORMATTING
-                + BOLD + "WITH PARAMETERS: " + END_FORMATTING + " ".join(param) + "\n"
-                + BOLD + "EXIT-CODE: %d\n" % command.returncode +
-                "ERROR:\n" + END_FORMATTING + command.stderr)
+            print(RED + BOLD + "Command %s FAILED\n" % prog + END_FORMATTING
+                  + BOLD + "WITH PARAMETERS: " +
+                  END_FORMATTING + " ".join(param) + "\n"
+                  + BOLD + "EXIT-CODE: %d\n" % command.returncode +
+                  "ERROR:\n" + END_FORMATTING + command.stderr)
     except OSError as e:
-        sys.exit(RED + BOLD + "failed to execute program '%s': %s" % (prog, str(e)) + END_FORMATTING)
+        sys.exit(RED + BOLD + "failed to execute program '%s': %s" % (prog,
+                                                                      str(e)) + END_FORMATTING)
 
 
 def extract_species(row):
     split_row = row['query-comment'].split(" ")
     if split_row[0].startswith("[") and split_row[1].endswith("]"):
-        species = (" ").join([split_row[3], split_row[4]]) 
+        species = (" ").join([split_row[3], split_row[4]])
     else:
         species = (" ").join([split_row[1], split_row[2]])
     return species
+
 
 def extract_accession(row):
     split_row = row['query-comment'].split(" ")
@@ -159,27 +188,30 @@ def extract_accession(row):
         accession = split_row[0]
     return accession
 
+
 def import_mash_screen_to_pandas(screen_file):
     dataframe = pd.read_csv(screen_file, sep="\t", names=['identity', 'shared-hashes',
-                                                   'median-multiplicity', 'p-value',
-                                                   'query-ID', 'query-comment'])
-    
-    dataframe['Species'] = dataframe.apply(extract_species, axis=1)    
+                                                          'median-multiplicity', 'p-value',
+                                                          'query-ID', 'query-comment'])
+
+    dataframe['Species'] = dataframe.apply(extract_species, axis=1)
     dataframe['Accession'] = dataframe.apply(extract_accession, axis=1)
-    dataframe['GCF'] = dataframe['query-ID'].str.split("_").str[0:2].str.join('_')
+    dataframe['GCF'] = dataframe['query-ID'].str.split(
+        "_").str[0:2].str.join('_')
     dataframe['ASM'] = dataframe['query-ID'].str.split("_").str[2]
     dataframe['Hash_1'] = dataframe['shared-hashes'].str.split("/").str[0]
     dataframe['Hash_2'] = dataframe['shared-hashes'].str.split("/").str[1]
-    
-    to_int = ['Hash_1', 'Hash_2']    
-                
+
+    to_int = ['Hash_1', 'Hash_2']
+
     for column in dataframe.columns:
         if column in to_int:
             dataframe[column] = dataframe[column].astype(int)
-            
-    dataframe['Hash_fr'] = dataframe['Hash_1']/ dataframe['Hash_2']
-    
+
+    dataframe['Hash_fr'] = dataframe['Hash_1'] / dataframe['Hash_2']
+
     return dataframe
+
 
 def extract_species_from_screen(screen_file, identity_threshold=0.9):
 
@@ -190,29 +222,35 @@ def extract_species_from_screen(screen_file, identity_threshold=0.9):
     hash_values = df_index.Hash_fr.values.tolist()
     hash_values.sort(reverse=True)
 
-    main_species = df_index['Species'][df_index['Hash_fr'] == hash_values[0]].values[0]
-    
+    main_species = df_index['Species'][df_index['Hash_fr']
+                                       == hash_values[0]].values[0]
+
     species_report = "Main species: " + "<i>" + main_species + "</i>" + "<br />"
-    
-    #<p style="padding-right: 5px;">My Text Here</p>.
+
+    # <p style="padding-right: 5px;">My Text Here</p>.
     if len(hash_values) > 1:
         for index, hash_value in enumerate(hash_values):
-            species_hashed = df_index['Species'][df_index['Hash_fr'] == hash_value].values[0]
+            species_hashed = df_index['Species'][df_index['Hash_fr']
+                                                 == hash_value].values[0]
             if index != 0:
                 if hash_value > 0.6:
-                    species_line = "Another high represented species found: " + "<i>" + species_hashed + "</i>" + "<br />"
+                    species_line = "Another high represented species found: " + \
+                        "<i>" + species_hashed + "</i>" + "<br />"
                 elif hash_value < 0.3:
-                    species_line = "Another less represented species found: " + "<i>" + species_hashed + "</i>" + "<br />"
+                    species_line = "Another less represented species found: " + \
+                        "<i>" + species_hashed + "</i>" + "<br />"
                 else:
-                    species_line = "Another mild represented species found: " + "<i>" + species_hashed + "</i>" + "<br />"
-                    
+                    species_line = "Another mild represented species found: " + \
+                        "<i>" + species_hashed + "</i>" + "<br />"
+
                 species_report = species_report + species_line
-                
+
     return main_species, species_report
 
 
 if __name__ == '__main__':
     logger.info("#################### SPECIES #########################")
     args = get_arguments()
-    #zcat_concat_reads(args)
-    mash_screen(args, winner=True, r2=False, mash_database="/home/laura/DATABASES/Mash/refseq.genomes.k21s1000.msh")
+    # zcat_concat_reads(args)
+    mash_screen(args, winner=True, r2=False,
+                mash_database="/home/laura/DATABASES/Mash/refseq.genomes.k21s1000.msh")

@@ -434,18 +434,17 @@ def main():
             YELLOW + BOLD + "Ommiting User Annotation, no BED or VCF files supplied" + END_FORMATTING)
     else:
         check_create_dir(out_annot_user_dir)
-        for root, _, files in os.walk(out_variant_ivar_dir):
-            if root == out_variant_ivar_dir:
-                for name in files:
-                    if name.endswith('.tsv'):
-                        sample = name.split('.')[0]
-                        logger.info(
-                            'User bed/vcf annotation in sample {}'.format(sample))
-                        filename = os.path.join(root, name)
-                        out_annot_file = os.path.join(
-                            out_annot_user_dir, sample + ".tsv")
-                        user_annotation(
-                            filename, out_annot_file, vcf_files=args.annot_vcf, bed_files=args.annot_bed)
+        for root, _, files in os.walk(out_variant_dir):
+            for name in files:
+                if name == 'snps.all.ivar.tsv':
+                    sample = root.split('/')[-1]
+                    logger.info(
+                        'User bed/vcf annotation in sample {}'.format(sample))
+                    filename = os.path.join(root, name)
+                    out_annot_file = os.path.join(
+                        out_annot_user_dir, sample + ".tsv")
+                    user_annotation(
+                        filename, out_annot_file, vcf_files=args.annot_vcf, bed_files=args.annot_bed)
 
     # USER AA DEFINED
     if not args.annot_aa:
