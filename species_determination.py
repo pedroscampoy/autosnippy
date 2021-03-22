@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 import re
 import subprocess
-from misc import check_create_dir, extract_sample
+from misc import check_create_dir, extract_sample, execute_subprocess
 
 logger = logging.getLogger()
 
@@ -22,7 +22,7 @@ INSTITUTION:IiSGM
 AUTHOR: Pedro J. Sola (pedroscampoy@gmail.com)
 VERSION=0.1
 CREATED: 09 July 2019
-REVISION: 
+REVISION:
 
 ================================================================
 END_OF_HEADER
@@ -75,7 +75,7 @@ def get_arguments():
     return arguments
 
 
-def refseq_masher(r1_file, r2_file, output_file, threads, max_results=100):
+def refseq_masher(r1_file, r2_file, output_file, threads=16, max_results=50):
     """
     refseq_masher contains --top-n-results 50 -p 16 -o HPR3641322-50.contains2.tsv \
      HPR3641322-50_S27_L000_R1_001.fastq.gz HPR3641322-50_S27_L000_R2_001.fastq.gz
@@ -83,12 +83,12 @@ def refseq_masher(r1_file, r2_file, output_file, threads, max_results=100):
     r1 = os.path.abspath(r1_file)
     r2 = os.path.abspath(r2_file)
 
-    species_output_dir = obtain_output_dir(args, "Species")
-    check_create_dir(species_output_dir)
-    species_output_name = sample + ".screen.tab"
-    species_output_file = os.path.join(species_output_dir, species_output_name)
+    output_file = os.path.abspath(output_file)
 
-    cmd = ["refseq_masher", "screen", "-p", str(threads), mash_database, r1]
+    cmd = ["refseq_masher", "contains", "--top-n-results",
+           str(max_results), "-p", str(threads), "-o", output_file, r1, r2]
+
+    execute_subprocess(cmd)
 
 
 def zcat_concat_reads(args):
@@ -115,11 +115,12 @@ def zcat_concat_reads(args):
     return output_file
 
 
+"""
 def mash_screen(args, winner=True, r2=False, mash_database="/processing_Data/bioinformatics/references/mash/RefSeq88n.msh"):
     # https://mash.readthedocs.io/en/latest/index.html
     # https://gembox.cbcb.umd.edu/mash/refseq.genomes.k21s1000.msh #MASH refseq database
     # mash screen -w -p 4 ../refseq.genomes.k21s1000.msh 4_R1.fastq.gz 4_R2.fastq.gz > 4.winner.screen.tab
-    #identity, shared-hashes, median-multiplicity, p-value, query-ID, query-comment
+    # identity, shared-hashes, median-multiplicity, p-value, query-ID, query-comment
 
     if not os.path.isfile(mash_database):
         logger.info(RED + BOLD + "Mash database can't be found\n" + END_FORMATTING + "You can download it typing:\n\
@@ -146,7 +147,7 @@ def mash_screen(args, winner=True, r2=False, mash_database="/processing_Data/bio
     if r2 == True:
         cmd.append(r2)
 
-    #cmd.extend([mash_database, r1, r2])
+    # cmd.extend([mash_database, r1, r2])
 
     prog = cmd[0]
     param = cmd[1:]
@@ -169,6 +170,7 @@ def mash_screen(args, winner=True, r2=False, mash_database="/processing_Data/bio
     except OSError as e:
         sys.exit(RED + BOLD + "failed to execute program '%s': %s" % (prog,
                                                                       str(e)) + END_FORMATTING)
+"""
 
 
 def extract_species(row):
@@ -218,7 +220,7 @@ def extract_species_from_screen(screen_file, identity_threshold=0.9):
     screen_dataframe = import_mash_screen_to_pandas(screen_file)
 
     df_index = screen_dataframe[screen_dataframe.identity > identity_threshold]
-    #max_hash = df_index['Hash_fr'].max()
+    # max_hash = df_index['Hash_fr'].max()
     hash_values = df_index.Hash_fr.values.tolist()
     hash_values.sort(reverse=True)
 
@@ -252,5 +254,6 @@ if __name__ == '__main__':
     logger.info("#################### SPECIES #########################")
     args = get_arguments()
     # zcat_concat_reads(args)
-    mash_screen(args, winner=True, r2=False,
-                mash_database="/home/laura/DATABASES/Mash/refseq.genomes.k21s1000.msh")
+
+    # mash_screen(args, winner=True, r2=False,
+    #            mash_database="/home/laura/DATABASES/Mash/refseq.genomes.k21s1000.msh")
