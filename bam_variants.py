@@ -35,7 +35,7 @@ END_OF_HEADER
 """
 
 
-#COLORS AND AND FORMATTING
+# COLORS AND AND FORMATTING
 """
 http://ozzmaker.com/add-colour-to-text-in-python/
 The above ANSI escape code will set the text colour to bright green. The format is;
@@ -54,15 +54,31 @@ YELLOW = '\033[93m'
 DIM = '\033[2m'
 
 
-
-
 def run_snippy(r1, r2, reference, output_dir, sample, threads=16, minqual=20, minfrac=0.1, mincov=1):
     """
     snippy --cpus 16 --outdir mysnps --ref Listeria.gbk --R1 FDA_R1.fastq.gz --R2 FDA_R2.fastq.gz
     """
     prefix = os.path.join(output_dir, sample)
 
-    cmd = ["snippy", "--cpus", str(threads), "--outdir", prefix, "--minqual", str(minqual), "--mincov", str(mincov), "--minfrac", str(minfrac), "--ref", reference, "--R1", r1, "--R2", r2]
+    cmd = ["snippy", "--cpus", str(threads), "--outdir", prefix, "--minqual", str(minqual), "--mincov", str(
+        mincov), "--minfrac", str(minfrac), "--ref", reference, "--R1", r1, "--R2", r2]
+
+    execute_subprocess(cmd)
+
+
+def run_snippy_core(input_dir, output_dir, reference):
+    samples_snippy = []
+
+    output_dir = output_dir + "/core"
+
+    for root, dirs, files in os.walk(input_dir):
+        for name in dirs:
+            if root == input_dir:
+                foldername = os.path.join(root, name)
+                samples_snippy.append(foldername)
+
+    cmd = ["snippy-core", "-p", output_dir,
+           "--ref", reference] + samples_snippy
 
     execute_subprocess(cmd)
 
@@ -94,10 +110,13 @@ def merge_vcf(snp_vcf, indel_vcf):
                 if not line.startswith("#"):
                     fout.write(line)
 
+
 def create_bamstat(input_bam, output_dir, sample, threads=8):
     output_file = os.path.join(output_dir, sample + ".bamstats")
-    cmd = "samtools flagstat --threads {} {} > {}".format(str(threads), input_bam, output_file)
+    cmd = "samtools flagstat --threads {} {} > {}".format(
+        str(threads), input_bam, output_file)
     execute_subprocess(cmd, isShell=True)
+
 
 def create_coverage(input_bam, output_dir, sample):
     output_file = os.path.join(output_dir, sample + ".cov")
@@ -105,36 +124,25 @@ def create_coverage(input_bam, output_dir, sample):
     execute_subprocess(cmd, isShell=True)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 def samtools_markdup(args):
-    #http://www.htslib.org/doc/samtools.html
+    # http://www.htslib.org/doc/samtools.html
     # Add ms and MC tags for markdup to use later
-    #samtools fixmate -m namesort.bam fixmate.bam
+    # samtools fixmate -m namesort.bam fixmate.bam
     # Markdup needs position order
-    #samtools sort -o positionsort.bam fixmate.bam
+    # samtools sort -o positionsort.bam fixmate.bam
     # Finally mark duplicates
-    #samtools markdup positionsort.bam markdup.bam
+    # samtools markdup positionsort.bam markdup.bam
     pass
 
+
 def picard_markdup(input_bam):
-    #java -jar picard.jar MarkDuplicates \
+    # java -jar picard.jar MarkDuplicates \
     #  I=input.bam O=marked_duplicates.bam M=marked_dup_metrics.txt
     #picard_jar = get_picard_path()
-    
+
     input_bam = os.path.abspath(input_bam)
     #in_param = "I=" + input_bam
-    
+
     path_file_name = input_bam.split(".")[0]
     file_name = input_bam.split("/")[-1]
     output_markdup = path_file_name + ".rg.markdup.bam"
@@ -147,22 +155,25 @@ def picard_markdup(input_bam):
 
     check_create_dir(stat_output_dir)
 
-    cmd_markdup = ["picard", "MarkDuplicates", "-I", input_bam, "-O", output_markdup, "-M", stat_output_full]
+    cmd_markdup = ["picard", "MarkDuplicates", "-I", input_bam,
+                   "-O", output_markdup, "-M", stat_output_full]
     execute_subprocess(cmd_markdup)
-    
-    #samtools sort: samtools sort $output_dir/$sample".sorted.bam" -o $output_dir/$sample".sorted.bam"
-    cmd_sort = ["samtools", "sort", output_markdup, "-o", output_markdup_sorted]
+
+    # samtools sort: samtools sort $output_dir/$sample".sorted.bam" -o $output_dir/$sample".sorted.bam"
+    cmd_sort = ["samtools", "sort", output_markdup,
+                "-o", output_markdup_sorted]
     execute_subprocess(cmd_sort)
 
-    #Handled in Haplotype Caller function
-    #samtools index: samtools index $output_dir/$sample".sorted.bam"
-    #subprocess.run(["samtools", "index", output_markdup_sorted], 
-    #stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+    # Handled in Haplotype Caller function
+    # samtools index: samtools index $output_dir/$sample".sorted.bam"
+    # subprocess.run(["samtools", "index", output_markdup_sorted],
+    # stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
     check_remove_file(input_bam)
     check_remove_file(output_markdup)
 
+
 def picard_dictionary(args):
-    #java -jar picard.jar CreateSequenceDictionary\
+    # java -jar picard.jar CreateSequenceDictionary\
     # R=reference.fasta O=reference.dict
     #picard_jar = get_picard_path()
 
@@ -177,13 +188,13 @@ def picard_dictionary(args):
     if os.path.exists(dict_file_name):
         logger.info(dict_file_name + " already EXIST")
     else:
-        cmd = ["picard", "CreateSequenceDictionary", 
-        ref_param, out_param]
+        cmd = ["picard", "CreateSequenceDictionary",
+               ref_param, out_param]
         execute_subprocess(cmd)
 
 
 def samtools_faidx(args):
-    #samtools faidx reference.fa
+    # samtools faidx reference.fa
 
     input_reference = os.path.abspath(args.reference)
     fai_file_name = input_reference + ".fai"
@@ -208,21 +219,24 @@ def ivar_trim(input_bam, primers_file, sample, min_length=30, min_quality=20, sl
         Output Options   Description
            -p    (Required) Prefix for the output BAM file
     """
-    
+
     input_bam = os.path.abspath(input_bam)
     input_bai = input_bam + ".bai"
     primers_file = os.path.abspath(primers_file)
 
     prefix = input_bam.split('.')[0] + ".rg.markdup.trimmed"
     output_trimmed_bam = prefix + ".bam"
-    output_trimmed_sorted_bam = input_bam.split('.')[0] + ".rg.markdup.trimmed.sorted.bam"
-    
-    cmd = ["ivar", "trim", "-i", input_bam, "-b", primers_file, "-p", prefix, "-m", str(min_length), "-q", str(min_quality), "-s", str(sliding_window_width), "-e"]
+    output_trimmed_sorted_bam = input_bam.split(
+        '.')[0] + ".rg.markdup.trimmed.sorted.bam"
+
+    cmd = ["ivar", "trim", "-i", input_bam, "-b", primers_file, "-p", prefix, "-m",
+           str(min_length), "-q", str(min_quality), "-s", str(sliding_window_width), "-e"]
     execute_subprocess(cmd)
 
     check_remove_file(input_bam)
 
-    cmd_sort = ["samtools", "sort", output_trimmed_bam, "-o", output_trimmed_sorted_bam]
+    cmd_sort = ["samtools", "sort", output_trimmed_bam,
+                "-o", output_trimmed_sorted_bam]
     execute_subprocess(cmd_sort)
 
     check_remove_file(output_trimmed_bam)
@@ -231,6 +245,7 @@ def ivar_trim(input_bam, primers_file, sample, min_length=30, min_quality=20, sl
     execute_subprocess(cmd_index)
 
     check_remove_file(input_bai)
+
 
 def ivar_variants(reference, input_bam, output_variant, sample, annotation, min_quality=20, min_frequency_threshold=0.8, min_depth=20):
     """
@@ -249,19 +264,19 @@ def ivar_variants(reference, input_bam, output_variant, sample, annotation, min_
     check_create_dir(ivar_folder)
     prefix = ivar_folder + '/' + sample
 
-    input = {'reference' : reference,
-            'input_bam': input_bam,
-            'prefix' : prefix,
-            'min_quality': str(min_quality),
-            'min_frequency_threshold': str(min_frequency_threshold),
-            'min_depth': str(min_depth),
-            'annotation': annotation}
-
+    input = {'reference': reference,
+             'input_bam': input_bam,
+             'prefix': prefix,
+             'min_quality': str(min_quality),
+             'min_frequency_threshold': str(min_frequency_threshold),
+             'min_depth': str(min_depth),
+             'annotation': annotation}
 
     cmd = "samtools mpileup -aa -A -d 0 -B -Q 0 --reference {reference} {input_bam} | \
         ivar variants -p {prefix} -q {min_quality} -t {min_frequency_threshold} -m {min_depth} -r {reference} -g {annotation}".format(**input)
 
     execute_subprocess(cmd, isShell=True)
+
 
 def ivar_consensus(input_bam, output_consensus, sample, min_quality=20, min_frequency_threshold=0.8, min_depth=20, uncovered_character='N'):
     """
@@ -288,16 +303,17 @@ def ivar_consensus(input_bam, output_consensus, sample, min_quality=20, min_freq
     prefix = output_consensus + '/' + sample
 
     input = {'input_bam': input_bam,
-            'prefix' : prefix,
-            'min_quality': str(min_quality),
-            'min_frequency_threshold': str(min_frequency_threshold),
-            'min_depth': str(min_depth),
-            'uncovered_character': uncovered_character}
+             'prefix': prefix,
+             'min_quality': str(min_quality),
+             'min_frequency_threshold': str(min_frequency_threshold),
+             'min_depth': str(min_depth),
+             'uncovered_character': uncovered_character}
 
     cmd = "samtools mpileup -aa -A -d 0 -B -Q 0  {input_bam} | \
         ivar consensus -p {prefix} -q {min_quality} -t {min_frequency_threshold} -m {min_depth} -n {uncovered_character}".format(**input)
 
     execute_subprocess(cmd, isShell=True)
+
 
 def replace_consensus_header(input_fasta):
     with open(input_fasta, 'r+') as f:
@@ -308,8 +324,6 @@ def replace_consensus_header(input_fasta):
         f.seek(0)
         f.write(content)
         f.truncate()
-
-
 
 
 if __name__ == '__main__':

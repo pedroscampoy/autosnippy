@@ -90,6 +90,71 @@ def add_window_distance(vcf_df, window_size=10):
                     vcf_df.loc[index, df_header] = len(num_conglomerate)
 
 
+def extract_close_snps(df, snps_in_10=1):
+    # Calculate close SNPS/INDELS and remove those with 2 or more mutations in 10bp
+    df['POS'] = df.apply(lambda x: x.Position.split('|')[2], axis=1)
+    df['POS'] = df['POS'].astype(int)
+    df = df.sort_values("POS")
+    add_window_distance(df)
+    return df[df.window_10 > snps_in_10].POS.tolist()
+
+
+def coverage_to_df(input_file, min_coverage=10):
+    sample_name = input_file.split("/")[-1].split(".")[0]
+    min_cov_df = pd.DataFrame()
+    coverage_list = []
+    with open(input_file, 'r') as f:
+        content = f.read()
+        content_list = content.split('\n')
+        while '' in content_list:
+            content_list.remove('')
+    coverage_list = [int(x.split("\t")[2]) for x in content_list]
+    min_cov_df[sample_name] = coverage_list
+    min_cov_df = min_cov_df[min_cov_df <= min_coverage].dropna(how='all')
+
+    return min_cov_df
+
+
+def identify_uncovered(cov_folder, min_coverage=10, nocall_fr=0.5):
+    cov_folder = os.path.abspath(cov_folder)
+    len_files = set()
+    # Create Position column and asign value
+    cov_df = pd.DataFrame()
+
+    for root, _, files in os.walk(cov_folder):
+        if root == cov_folder:
+            for name in files:
+                if name.endswith(".cov"):
+                    filename = os.path.join(root, name)
+                    # import to dataframe if they have the same positios(same reference)
+                    low_coverage_df = coverage_to_df(filename)
+                    cov_df = cov_df.merge(
+                        low_coverage_df, how='outer', left_index=True, right_index=True)
+
+    # Determine low covered positions in dataframe
+    # Filter positions with values lower than min_cov, dro rows with all false and extract the indet to iterate
+    df_any_uncovered = cov_df[cov_df < min_coverage].dropna(
+        how='all')  # .index.tolist()
+    df_any_uncovered['N_uncovered'] = df_any_uncovered.count(axis=1)
+    df_any_uncovered['Position'] = df_any_uncovered.index + 1
+
+    n_samples = len(df_any_uncovered.columns) - 2
+
+    df_half_uncovered_list = df_any_uncovered['Position'][df_any_uncovered.N_uncovered /
+                                                          n_samples >= nocall_fr].tolist()
+
+    return df_half_uncovered_list
+
+
+def remove_position_from_compare(df, position_list):
+    df['POS'] = df.apply(lambda x: x.Position.split('|')[2], axis=1)
+    df['POS'] = df['POS'].astype(int)
+    df = df.sort_values("POS")
+    df = df[~df['POS'].isin(position_list)]
+    df = df.drop(['POS'], axis=1)
+    return df
+
+
 def check_file_exists(file_name):
     """
         Check file exist and is not 0 Kb, if not program exit.

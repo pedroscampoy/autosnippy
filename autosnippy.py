@@ -17,11 +17,13 @@ from misc import check_file_exists, extract_sample, check_create_dir, execute_su
     extract_read_list, file_to_list, obtain_group_cov_stats, clean_unwanted_files, \
     check_reanalysis, vcf_stats, remove_low_quality, obtain_overal_stats
 from preprocessing import fastqc_quality, fastp_trimming, format_html_image
-from bam_variants import run_snippy, extract_indels, merge_vcf, create_bamstat, create_coverage
-from vcf_process import filter_tsv_variants, vcf_to_ivar_tsv
-from annotation import annotate_snpeff, user_annotation, rename_reference_snpeff, report_samples_html
+from bam_variants import run_snippy, extract_indels, merge_vcf, create_bamstat, create_coverage, run_snippy_core
+from vcf_process import filter_tsv_variants, vcf_to_ivar_tsv, import_VCF4_core_to_compare
+from annotation import annotate_snpeff, user_annotation, rename_reference_snpeff, report_samples_html, \
+    user_annotation_aa, annotation_to_html
 from compare_snp import ddtb_add, ddtb_compare, ddbb_create_intermediate, revised_df, recalibrate_ddbb_vcf_intermediate, \
-    remove_position_range, extract_complex_list
+    remove_position_range, extract_complex_list, identify_uncovered, extract_close_snps, remove_position_from_compare
+from species_determination import refseq_masher
 
 """
 =============================================================
@@ -207,9 +209,8 @@ def main():
     # Output related
     out_qc_dir = os.path.join(output, "Quality")
     out_qc_pre_dir = os.path.join(out_qc_dir, "raw")  # subfolder
-    # out_qc_post_dir = os.path.join(out_qc_dir, "processed") #subfolder
-    #out_trim_dir = os.path.join(output, "Trimmed")
     out_variant_dir = os.path.join(output, "Variants")
+    out_core_dir = os.path.join(output, "Core")
 
     out_stats_dir = os.path.join(output, "Stats")
     out_stats_bamstats_dir = os.path.join(
@@ -222,6 +223,8 @@ def main():
     out_annot_snpeff_dir = os.path.join(out_annot_dir, "snpeff")  # subfolder
     out_annot_user_dir = os.path.join(out_annot_dir, "user")  # subfolder
     out_annot_user_aa_dir = os.path.join(out_annot_dir, "user_aa")  # subfolder
+
+    out_species_dir = os.path.join(output, "Species")
 
     for r1_file, r2_file in zip(r1, r2):
         # EXtract sample name
@@ -241,9 +244,6 @@ def main():
                         " (" + sample_number + "/" + sample_total + ")" + END_FORMATTING)
 
             if not os.path.isfile(output_final_vcf):
-
-                args.r1_file = r1_file
-                args.r2_file = r2_file
 
                 ##############START PIPELINE#####################
                 #################################################
@@ -346,6 +346,22 @@ def main():
                     after = datetime.datetime.now()
                     print(("Done with function in: %s" % (after - prior)))
 
+            # SPECIES DETERMINATION
+            ###################################################
+            check_create_dir(out_species_dir)
+
+            output_species = os.path.join(
+                out_species_dir, sample + ".species.tab")
+
+            if os.path.isfile(output_species):
+                logger.info(YELLOW + DIM + output_species +
+                            " EXIST\nOmmiting Species determinatin in " + sample + END_FORMATTING)
+            else:
+                logger.info(
+                    GREEN + "Determining species in " + sample + END_FORMATTING)
+                refseq_masher(r1_file, r2_file, output_species,
+                              threads=args.threads, max_results=50)
+
             ########################CREATE STATS AND QUALITY FILTERS########################################################################
             ################################################################################################################################
             #CREATE Bamstats#######################################
@@ -398,6 +414,46 @@ def main():
     ##############################################################################################################################
     #logger.info(GREEN + "Removing low quality samples in group " + group_name + END_FORMATTING)
     #remove_low_quality(output, min_coverage=args.mincoverage, min_hq_snp=args.min_snp, type_remove='Uncovered')
+
+    # RUN SNIPPY CORE
+    ##############################################################################################################################
+    check_create_dir(out_core_dir)
+    logger.info(GREEN + "Running snippy-core " +
+                group_name + END_FORMATTING)
+    run_snippy_core(out_variant_dir, out_core_dir, reference)
+
+    logger.info(GREEN + "Adapting core-snp to compare format " +
+                group_name + END_FORMATTING)
+    core_vcf_file = os.path.join(out_core_dir, "core.vcf")
+    core_vcf_file_adapted = os.path.join(out_core_dir, "core.vcf.adapted.tsv")
+    core_vcf_file_removed = os.path.join(
+        out_core_dir, "core.vcf.adapted.final.tsv")
+
+    core_vcf_df_adapted = import_VCF4_core_to_compare(core_vcf_file)
+    core_vcf_df_adapted.to_csv(core_vcf_file_adapted, sep="\t", index=False)
+
+    logger.info(GREEN + "Obtaining clustered positions " +
+                group_name + END_FORMATTING)
+
+    close_positions_list = extract_close_snps(
+        core_vcf_df_adapted, snps_in_10=1)
+    logger.info(GREEN + "Obtaining uncovered positions " +
+                group_name + END_FORMATTING)
+    uncovered_list = identify_uncovered(
+        out_stats_coverage_dir, min_coverage=10, nocall_fr=0.5)
+
+    logger.debug('Clustered positions in core SNP:\n{}'.format(
+        (",".join([str(x) for x in close_positions_list]))))
+    logger.debug('Uncovered positions in all samples:\n{}'.format(
+        (",".join([str(x) for x in uncovered_list]))))
+
+    to_remove_list = close_positions_list + uncovered_list
+
+    remove_df = remove_position_from_compare(
+        core_vcf_df_adapted, to_remove_list)
+    remove_df.to_csv(core_vcf_file_removed, sep="\t", index=False)
+
+    ddtb_compare(core_vcf_file_removed, distance=10)
 
     #ANNOTATION WITH SNPEFF AND USER INPUT ##############
     #####################################################

@@ -16,6 +16,53 @@ from misc import check_file_exists, check_create_dir, execute_subprocess, check_
 logger = logging.getLogger()
 
 
+def import_VCF4_core_to_compare(vcf_file, sep='\t'):
+    header_lines = 0
+
+    with open(vcf_file) as f:
+        first_line = f.readline().strip()
+        next_line = f.readline().strip()
+        while next_line.startswith("##"):
+            header_lines = header_lines + 1
+            # logger.info(next_line)
+            next_line = f.readline()
+
+    if first_line.endswith('VCFv4.2'):
+
+        # Use first line as header
+        df = pd.read_csv(vcf_file, sep=sep, skiprows=[
+            header_lines], header=header_lines)
+
+        df.POS = df.POS.apply(str)
+        #df['POS'] = df['POS'].astype("string")
+        #df['POS'] = pandas.Series(df['POS'], dtype="string")
+        df['Position'] = df["#CHROM"] + "|" + \
+            df["REF"] + "|" + df["POS"] + "|" + df["ALT"]
+        df = df.drop(['#CHROM', 'POS', 'ID', 'REF', 'ALT',
+                      'QUAL', 'FILTER', 'INFO', 'FORMAT'], axis=1)
+        df = df[['Position'] +
+                [col for col in df.columns if col not in ['Position']]]
+        df["N"] = df.apply(lambda x: sum([i != 0 for i in x[1:]]), axis=1)
+        df = df[['Position', 'N'] +
+                [col for col in df.columns if col not in ['Position', 'N']]]
+
+        def extract_sample_name(row):
+            count_list = [i != 0 for i in row[2:]]
+            samples = np.array(df.columns[2:])
+            # samples[np.array(count_list)] filter array with True False array
+            return ((',').join(samples[np.array(count_list)]))
+
+        df['Samples'] = df.apply(extract_sample_name, axis=1)
+        df = df[['Position', 'N', 'Samples'] +
+                [col for col in df.columns if col not in ['Position', 'N', 'Samples']]]
+
+    else:
+        logger.info("This vcf file is not v4.2")
+        sys.exit(1)
+
+    return df
+
+
 def import_VCF42_freebayes_to_df(vcf_file, sep='\t'):
     vcf_file = os.path.abspath(vcf_file)
 
