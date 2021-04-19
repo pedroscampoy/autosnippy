@@ -21,7 +21,7 @@ from bam_variants import run_snippy, extract_indels, merge_vcf, create_bamstat, 
 from vcf_process import filter_tsv_variants, vcf_to_ivar_tsv, import_VCF4_core_to_compare
 from annotation import annotate_snpeff, user_annotation, rename_reference_snpeff, report_samples_html, \
     user_annotation_aa, annotation_to_html
-from compare_snp import ddtb_add, ddtb_compare, ddbb_create_intermediate, revised_df, recalibrate_ddbb_vcf_intermediate, \
+from compare_snp import ddtb_compare, ddbb_create_intermediate, revised_df, recalibrate_ddbb_vcf_intermediate, \
     remove_position_range, extract_complex_list, identify_uncovered, extract_close_snps, remove_position_from_compare
 from species_determination import refseq_masher
 

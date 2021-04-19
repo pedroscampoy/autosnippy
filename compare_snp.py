@@ -8,6 +8,9 @@ import numpy as np
 import argparse
 import sys
 import subprocess
+from pandarallel import pandarallel
+import concurrent.futures
+import multiprocessing
 from sklearn.metrics import pairwise_distances, accuracy_score
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -412,133 +415,6 @@ def import_tsv_pandas(vcf_file, sep='\t'):
     return dataframe
 
 
-def ddtb_add(input_folder, output_filename, sample_filter=False, vcf_suffix=".tsv"):
-    directory = os.path.abspath(input_folder)
-    output_filename = os.path.abspath(output_filename)
-
-    # Make sure output exist to force change name
-    if os.path.isfile(output_filename):
-        logger.info(YELLOW + "ERROR: " + BOLD +
-                    "output database EXIST, choose a different name or manually delete" + END_FORMATTING)
-        sys.exit(1)
-
-    final_ddbb = blank_database()
-    sample_filter_list = []
-
-    # Handle sample filter
-    if sample_filter == False:
-        sample_filter_list = [x.split(".")[0] for x in os.listdir(
-            directory) if x.endswith(vcf_suffix)]
-    else:
-        if os.path.isfile(sample_filter):
-            with open(sample_filter, 'r') as f:
-                for line in f:
-                    sample_filter_list.append(line.strip())
-        else:
-            "Sample file don't exist"
-            sys.exit(1)
-
-    if len(sample_filter_list) < 1:
-        logger.info("prease provide 2 or more samples")
-        sys.exit(1)
-
-    # logger.info("Previous final database contains %s rows and %s columns\n" % final_ddbb.shape)
-    logger.info("The directory selected is: %s" % directory)
-
-    all_samples = 0
-    new_samples = 0
-    for filename in os.listdir(directory):
-        if not filename.startswith('.') and filename.endswith(vcf_suffix):
-
-            all_samples = all_samples + 1
-            positions_shared = []
-            positions_added = []
-
-            sample = filename.split(".")[0]  # Manage sample name
-
-            if sample in sample_filter_list:
-                logger.info("\nThe file is: %s" % filename)
-
-                file = os.path.join(directory, filename)  # Whole file path
-                # Manage file[s]. Check if file exist and is greater than 0
-                check_file_exists(file)
-
-                # Import files in annotated tsv format
-                new_sample = import_tsv_pandas(file)
-
-                # Check if sample exist
-                ######################
-                if sample not in final_ddbb.columns.tolist():
-                    logger.info("Adding new sample %s to %s" %
-                                (sample, os.path.basename(output_filename)))
-                    new_samples = new_samples + 1
-                    # extract the number of columns to insert a new one
-                    new_colum_index = len(final_ddbb.columns)
-                    # final_ddbb[sample] = sample #adds a new column but fills all blanks with the value sample
-                    # add a new column with defauls values = 0
-                    final_ddbb.insert(new_colum_index, sample, 0)
-
-                    # Check if position exist
-                    ########################
-                    for _, row in new_sample.iterrows():
-
-                        position = ('|').join(
-                            [row['REGION'], row['REF'], str(row['POS']), row['ALT']])
-
-                        if position not in final_ddbb["Position"].values:
-                            # Count new positions for stats
-                            positions_added.append(position)
-
-                            new_row = len(final_ddbb.index)
-                            final_ddbb.loc[new_row, 'Position'] = position
-                            final_ddbb.loc[new_row, 'Samples'] = sample
-                            final_ddbb.loc[new_row, 'N'] = int(1)
-                            final_ddbb.loc[new_row, sample] = str(1)
-                        else:
-                            # Count shared positions for stats
-                            positions_shared.append(position)
-
-                            # Check whether the column matches the value and retrieve the first position [0]
-                            # of the object index generated
-                            index_position = final_ddbb.index[final_ddbb["Position"]
-                                                              == position][0]
-                            # Add sample to corresponding cell [position, samples]
-                            number_samples_with_position = final_ddbb.loc[index_position, 'N']
-                            names_samples_with_position = final_ddbb.loc[index_position, 'Samples']
-                            new_names_samples = names_samples_with_position + "," + sample
-                            # Sum 1 to the numbes of samples containing the position
-                            final_ddbb.loc[index_position,
-                                           'N'] = number_samples_with_position + 1
-                            final_ddbb.loc[index_position,
-                                           'Samples'] = new_names_samples
-                            # Add "1" in cell with correct position vs sample (indicate present)
-                            final_ddbb.loc[index_position, sample] = str(1)
-
-                    logger.info("\nSAMPLE:\t%s\nTOTAL Variants:\t%s\nShared Variants:\t%s\nNew Variants:\t%s\n"
-                                % (sample, len(new_sample.index), len(positions_shared), len(positions_added)))
-                else:
-                    logger.info(YELLOW + "The sample " + sample +
-                                " ALREADY exist" + END_FORMATTING)
-
-    final_ddbb = final_ddbb.fillna(0).sort_values("Position")
-    # final_ddbb["Position"] = final_ddbb["Position"].astype(int) #TO REMOVE when nucleotides are added
-    final_ddbb['N'] = final_ddbb['N'].astype(int)
-    # final_ddbb = final_ddbb.reset_index(drop=True)
-
-    logger.info("Final database now contains %s rows and %s columns" %
-                final_ddbb.shape)
-
-    output_filename = output_filename + ".tsv"
-    final_ddbb.to_csv(output_filename, sep='\t', index=False)
-    logger.info(output_filename)
-
-    # Create small report with basic count
-    #####################################
-
-    logger.info("\n" + GREEN + "Position check Finished" + END_FORMATTING)
-    logger.info(GREEN + "Added " + str(new_samples) +
-                " samples out of " + str(all_samples) + END_FORMATTING + "\n")
-
 ###########################MATRIX TO CLUSTER FUNCTIONS###########################################################
 
 
@@ -883,123 +759,167 @@ def recheck_variant_mpileup_intermediate(reference_id, position, alt_snp, sample
                     return 0
 
 
-def recheck_variant_rawvcf_intermediate(reference_id, position, alt_snp, sample, previous_binary, variant_folder, min_cov_low_freq=10):
+def recheck_variant_rawvcf_intermediate(row, positions, alt_snps, variant_folder, min_cov_low_freq=10):
     """
     CU458896.1	3068036	.	G	A	262.784	.	AB=0.8;ABP=14.7363;AC=1;AF=0.5;AN=2;AO=12;CIGAR=1X;DP=15;DPB=15;DPRA=0;EPP=9.52472;EPPR=3.73412;GTI=0;LEN=1;MEANALT=1;MQM=60;MQMR=60;NS=1;NUMALT=1;ODDS=0.121453;PAIRED=0.333333;PAIREDR=0;PAO=0;PQA=0;PQR=0;PRO=0;QA=410;QR=108;RO=3;RPL=7;RPP=3.73412;RPPR=9.52472;RPR=5;RUN=1;SAF=4;SAP=5.9056;SAR=8;SRF=1;SRP=3.73412;SRR=2;TYPE=snp	GT:DP:AD:RO:QR:AO:QA:GL	0/1:15:3,12:3:108:12:410:-32.709,0,-5.55972
     """
-    if previous_binary != 0 and previous_binary != '0':
-        # logger.info('NON0: {} in sample {} is not 0: {}'.format(position, sample, previous_binary))
-        return previous_binary
-    else:
-        # previous_binary = int(previous_binary)
-        position = int(position)
+    sample = row.name
+    row_values = row.values
+    return_list = [0] * len(positions)
 
-        # Identify correct vcf
-        variant_sample_folder = os.path.join(variant_folder, sample)
-        for root, _, files in os.walk(variant_sample_folder):
-            for name in files:
-                if name == "snps.raw.vcf":
-                    filename = os.path.join(root, name)
+    # Identify vcf
+    variant_sample_folder = os.path.join(variant_folder, sample)
+    filename = os.path.join(variant_sample_folder, "snps.raw.vcf")
 
-        # Open file and retrieve output
+    # Open file and retrieve output
 
-        position_present = False
+    with open(filename, 'r') as f:
+        for line in f:
+            if line.startswith('#CHROM'):
+                headers = line.split("\t")
+                vcf_sample = headers[-1].strip()
+            elif not line.startswith('#'):
+                line_split = line.split("\t")
+                vcf_position = line_split[1]
+                if vcf_position in positions:
+                    position_index = positions.index(vcf_position)
+                    if str(row[position_index]) == '0':
+                        # logger.info(
+                        #    'recalibrating position: {} in sample: {}'.format(vcf_position, sample))
 
-        with open(filename, 'r') as f:
-            for line in f:
-                if line.startswith('#CHROM'):
-                    headers = line.split("\t")
-                elif str(position) in line and not line.startswith('#'):
-                    line_split = line.split("\t")
-                    if line_split[1] == str(position):
-                        logger.info(
-                            'recalibrating position: {} in sample: {}'.format(position, sample))
-                        position_present = True
-                        vcf_reference = line_split[0]
-                        vcf_position = line_split[1]
-                        #vcf_ref_base = line_split[3]
-                        vcf_alt_base = line_split[4]
+                        # vcf_ref_base = line_split[3]
                         params = line_split[-2].split(":")
                         value_params = line_split[-1].split(":")
                         depth_index = params.index('DP')
+
+                        vcf_reference = line_split[0]
+                        vcf_alt_base = line_split[4]
                         vcf_depth = int(value_params[depth_index])
-                        #ref_depth_indef = params.index('RO')
-                        alt_depth_indef = params.index('AO')
+                        # ref_depth_indef = params.index('RO')
+                        alt_depth_index = params.index('AO')
+
                         try:
-                            vcf_alt_depth = int(value_params[alt_depth_indef])
+                            vcf_alt_depth = int(value_params[alt_depth_index])
                         except:
                             vcf_alt_depth = int(
-                                value_params[alt_depth_indef].split(',')[-1])
+                                value_params[alt_depth_index].split(',')[-1])
                             vcf_alt_base = vcf_alt_base.split(',')[-1]
-                        vcf_alt_freq = vcf_alt_depth/vcf_depth
 
-        if position_present == False:
-            logger.debug('Position: {} not present in {}'.format(
-                position, filename))
-            return 0
-        else:
-            logger.debug('RECALIBRATE: CHROM: {} POS: {},  ALT: {}, DP: {}, FREQ: {}\nORI==> CHROM: {} POS: {}, ALT: {}'.format(
-                vcf_reference, vcf_position, vcf_alt_base, vcf_depth, vcf_alt_freq, reference_id, position, alt_snp))
+                        vcf_alt_freq = round(vcf_alt_depth/vcf_depth, 2)
 
-            if reference_id != vcf_reference:
-                logger.info('ERROR: References are different')
-                sys.exit(1)
-            elif (len(alt_snp) > 1 and str(position) == str(vcf_position)) or (len(vcf_reference) > 1 and str(position) == str(vcf_position)):
-                if vcf_depth <= min_cov_low_freq and vcf_depth > 0:
-                    logger.debug('Position: {} LOWDEPTH: {}'.format(
-                        vcf_position, vcf_alt_freq))
-                    return '?'
-                else:
-                    return vcf_alt_freq
-            elif str(position) == str(vcf_position) and alt_snp == vcf_alt_base:
-                if vcf_depth <= min_cov_low_freq and vcf_depth > 0:
-                    logger.debug('Position: {} LOWDEPTH: {}'.format(
-                        vcf_position, vcf_alt_freq))
-                    return '?'
-                if vcf_alt_freq > 0.1:
-                    logger.debug('Position: {} HTZ with freq > 0.1: {}'.format(
-                        vcf_position, vcf_alt_freq))
-                    return vcf_alt_freq
-            else:
-                logger.debug('ELSE POS: {} SAMPLE: {}'.format(
-                    vcf_position, sample))
-                return 0
+                        position = positions[position_index]
+                        alt_snp = alt_snps[position_index]
+
+                        logger.debug('REC: POS: {},  ALT: {}, DP: {}, FREQ: {}\nORI==> POS: {}, ALT: {}, FREQ: {}'.format(
+                            vcf_position, vcf_alt_base, vcf_depth, vcf_alt_freq, position, alt_snps, row[position_index]))
+
+                        if vcf_depth <= min_cov_low_freq and vcf_depth > 0:
+                            logger.debug('Position: {} LOWDEPTH: {}, DP: {}'.format(
+                                vcf_position, vcf_alt_freq, vcf_depth))
+                            row[position_index] = '?'
+                        else:
+                            if vcf_depth >= min_cov_low_freq and alt_snp == vcf_alt_base and vcf_alt_freq >= 0.1:
+                                logger.debug('Position: {} RECOVERED from 0 to: {}'.format(
+                                    vcf_position, vcf_alt_freq))
+                                row[position_index] = vcf_alt_freq
+                            # Handle INDEL inconsistency between alt positions
+                            elif (len(alt_snp) > 1) and vcf_alt_freq >= 0.1:
+                                logger.debug('Position INDEL: {} RECOVERED from 0 to: {}'.format(
+                                    vcf_position, vcf_alt_freq))
+                                row[position_index] = vcf_alt_freq
+                            else:
+                                logger.debug('ELSE POS: {} SAMPLE: {}, ALT: {}, OGALT: {}, FREQ: {}, OGFREQ: {}, DP: {}'.format(
+                                    vcf_position, sample, alt_snp, vcf_alt_base, vcf_alt_freq, row[position_index], vcf_depth))
+                                logger.debug('con1 depth: {}, con2 alt: {}, con3 altfr: {}'.format(
+                                    vcf_depth <= min_cov_low_freq, alt_snp == vcf_alt_base, vcf_alt_freq <= 0.1))
+
+    return row
 
 
-def recalibrate_ddbb_vcf_intermediate(snp_matrix_ddbb_file, bam_folder, min_cov_low_freq=10):
+def recalibrate_ddbb_vcf_intermediate(snp_matrix_ddbb_file, variant_folder, min_cov_low_freq=10):
+    """
+    https://github.com/nalepae/pandarallel
+    """
+    pandarallel.initialize()
 
-    df_matrix = pd.read_csv(snp_matrix_ddbb_file, sep="\t")
+    selected_columns = ['Position', 'N',
+                        'Samples', 'CHROM', 'REF', 'POS', 'ALT']
 
-    sample_list_matrix = df_matrix.columns[3:]
-    n_samples = len(sample_list_matrix)
+    df = pd.read_csv(snp_matrix_ddbb_file, sep="\t")
+    df[['CHROM', 'REF', 'POS', 'ALT']
+       ] = df.Position.str.split("|", expand=True)
 
-    # Iterate over non unanimous positions
-    for index, data_row in df_matrix[df_matrix.N < n_samples].iloc[:, 3:].iterrows():
-        # Extract its position
-        whole_position = df_matrix.loc[index, "Position"]
-        row_reference = whole_position.split('|')[0]
-        row_position = int(whole_position.split('|')[2])
-        row_alt_snp = whole_position.split('|')[3]
+    df = df[selected_columns +
+            [col for col in df.columns if col not in selected_columns]]
 
-        # Use enumerate to retrieve column index (column ondex + 3)
-        # find positions with frequency >80% in mpileup execution
-        # Returns ! for coverage 0
-        new_presence_row = [recheck_variant_rawvcf_intermediate(
-            row_reference, row_position, row_alt_snp, df_matrix.columns[n + 3], x, bam_folder, min_cov_low_freq=10) for n, x in enumerate(data_row)]
+    dft = df.transpose()
 
-        df_matrix.iloc[index, 3:] = new_presence_row
-        # df_matrix.loc[index, 'N'] = sum([x == 1 for x in new_presence_row])
+    samples = [str(x) for x in dft.index if x not in selected_columns]
+    POSs = dft.loc['POS', :].tolist()
+    REFs = dft.loc['REF', :].tolist()
+    ALTs = dft.loc['ALT', :].tolist()
 
-    def estract_sample_count(row):
+    n_samples = len(samples)
+
+    header_df = dft.loc[selected_columns, :]
+    samples_df = dft.drop(selected_columns, axis=0)
+
+    #chunk_size = int(samples_df.shape[0]/num_processes)
+
+    # calculate the chunk size as an integer
+    # if ((samples_df.shape[0] * 2 ) <= num_processes):
+    #     chunks = [samples_df]
+
+    #     logger.info('NO Chunks!, num_proc: {}, rows: {}, chunk_size: {}, #chunks: {}'.format(num_processes, samples_df.shape[0], chunk_size, len(chunks)))
+    # else:
+    #     chunks = [samples_df.iloc[i:i + chunk_size] for i in range(0, samples_df.shape[0], chunk_size)]
+    #     logger.info('Chunks!, num_proc: {}, rows: {}, chunk_size: {}, #chunks: {}'.format(num_processes, samples_df.shape[0], chunk_size, len(chunks)))
+
+    samples_df.to_csv(
+        '/home/laura/ANALYSIS/MISC/Test_multithreading_vcf/sample_df_prev.tsv', sep="\t", index=False)
+
+    # def review_with_vcf(df_chunk):
+    #     df_chunk.apply(lambda x: recheck_variant_rawvcf_intermediate(x, POSs, ALTs, variant_folder, min_cov_low_freq=10), axis=1)
+    #     return df_chunk
+
+    samples_df = samples_df.parallel_apply(lambda x: recheck_variant_rawvcf_intermediate(
+        x, POSs, ALTs, variant_folder, min_cov_low_freq=10), axis=1)
+
+    # with concurrent.futures.ThreadPoolExecutor(max_workers=num_processes) as executor:
+    #     final_df = pd.concat(executor.map(review_with_vcf, chunks))
+    #futures = []
+    # for chunk in chunks:
+    #    future = executor.submit(review_with_vcf, chunk)
+    #    futures.append(future)
+    # for future in concurrent.futures.as_completed(futures):
+    #    logger.info(future.result())
+
+    final_dft = header_df.append(samples_df, ignore_index=True)
+
+    final_df = final_dft.transpose()
+
+    final_df.columns = selected_columns + samples
+
+    final_df = final_df.drop(['CHROM', 'REF', 'POS', 'ALT'], axis=1)
+
+    final_df.to_csv(
+        '/home/laura/ANALYSIS/MISC/Test_multithreading_vcf/final_df.tsv', sep="\t", index=False)
+
+    # pool = multiprocessing.Pool(processes=num_processes)
+    # final_df = pd.concat(pool.map(review_with_vcf, chunks))
+    # pool.close()
+    # pool.join()
+
+    def extract_sample_count(row):
         count_list = [i not in ['!', 0, '0'] for i in row[3:]]
-        samples = np.array(df_matrix.columns[3:])
-        # samples[np.array(count_list)] filter array with True False array
-        return (sum(count_list), (',').join(samples[np.array(count_list)]))
+        selected_samples = [sample for (sample, true_false) in zip(
+            samples, count_list) if true_false]
+        return (sum(count_list), (',').join(selected_samples))
 
-    df_matrix[['N', 'Samples']] = df_matrix.apply(
-        estract_sample_count, axis=1, result_type='expand')
+    final_df[['N', 'Samples']] = final_df.apply(
+        extract_sample_count, axis=1, result_type='expand')
 
-    return df_matrix
+    return final_df
 
 
 ###########################COMPARE FUNCTIONS#####################################################################
@@ -1293,10 +1213,16 @@ if __name__ == '__main__':
             recalibrated_snp_matrix_intermediate.to_csv(
                 compare_snp_matrix_recal_intermediate, sep="\t", index=False)
 
+            prior_recal = datetime.datetime.now()
+
             recalibrated_snp_matrix_mpileup = recalibrate_ddbb_vcf_intermediate(
                 compare_snp_matrix_recal_intermediate, args.bam_folder, min_cov_low_freq=10)
             recalibrated_snp_matrix_mpileup.to_csv(
                 compare_snp_matrix_recal_mpileup, sep="\t", index=False)
+
+            after_recal = datetime.datetime.now()
+            logger.debug("Done with recalibration vcf: %s" %
+                         (after_recal - prior_recal))
 
             recalibrated_revised_df = revised_df(recalibrated_snp_matrix_mpileup, output_dir, min_freq_include=0.75, min_threshold_discard_uncov_sample=0.4, min_threshold_discard_uncov_pos=0.4,
                                                  min_threshold_discard_htz_sample=0.6, min_threshold_discard_htz_pos=0.6, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True)
