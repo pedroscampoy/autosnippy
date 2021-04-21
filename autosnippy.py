@@ -21,7 +21,7 @@ from bam_variants import run_snippy, extract_indels, merge_vcf, create_bamstat, 
 from vcf_process import filter_tsv_variants, vcf_to_ivar_tsv, import_VCF4_core_to_compare
 from annotation import annotate_snpeff, user_annotation, rename_reference_snpeff, report_samples_html, \
     user_annotation_aa, annotation_to_html
-from compare_snp import ddtb_compare, ddbb_create_intermediate, revised_df, recalibrate_ddbb_vcf_intermediate, \
+from compare_snp_autosnippy import ddtb_compare, ddbb_create_intermediate, revised_df, recalibrate_ddbb_vcf_intermediate, \
     remove_position_range, extract_complex_list, identify_uncovered, extract_close_snps, remove_position_from_compare
 from species_determination import refseq_masher
 
@@ -564,18 +564,26 @@ def main():
     compare_snp_matrix_INDEL_intermediate = full_path_compare + \
         ".revised_INDEL_intermediate.tsv"
 
+    # Create intermediate
+
     recalibrated_snp_matrix_intermediate = ddbb_create_intermediate(
         out_variant_dir, out_stats_coverage_dir, min_freq_discard=0.1, min_alt_dp=10, only_snp=False)
     recalibrated_snp_matrix_intermediate.to_csv(
         compare_snp_matrix_recal_intermediate, sep="\t", index=False)
 
+    # Recalibrate intermediate with VCF
+
+    prior_recal = datetime.datetime.now()
     recalibrated_snp_matrix_mpileup = recalibrate_ddbb_vcf_intermediate(
         compare_snp_matrix_recal_intermediate, out_variant_dir, min_cov_low_freq=10)
     recalibrated_snp_matrix_mpileup.to_csv(
         compare_snp_matrix_recal_mpileup, sep="\t", index=False)
 
-    # recalibrated_revised_df = revised_df(recalibrated_snp_matrix_mpileup, path_compare, min_freq_include=0.8, min_threshold_discard_uncov_sample=0.4, min_threshold_discard_uncov_pos=0.4, min_threshold_discard_htz_sample=0.4, min_threshold_discard_htz_pos=0.4, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True)
-    # recalibrated_revised_df.to_csv(compare_snp_matrix_recal, sep="\t", index=False)
+    after_recal = datetime.datetime.now()
+    logger.debug("Done with recalibration vcf: %s" %
+                 (after_recal - prior_recal))
+
+    # Remove SNPs located within INDELs
 
     compare_snp_matrix_INDEL_intermediate_df = remove_position_range(
         recalibrated_snp_matrix_mpileup)
@@ -584,11 +592,29 @@ def main():
 
     # Extract all positions marked as complex
     complex_variants = extract_complex_list(out_variant_dir)
+    logger.debug('Complex positions in all samples:\n{}'.format(
+        (",".join([str(x) for x in complex_variants]))))
 
-    recalibrated_revised_INDEL_df = revised_df(compare_snp_matrix_INDEL_intermediate_df, path_compare, complex_pos=complex_variants, min_freq_include=0.8, min_threshold_discard_uncov_sample=0.6, min_threshold_discard_uncov_pos=0.6,
-                                               min_threshold_discard_htz_sample=0.6, min_threshold_discard_htz_pos=0.6, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True, windos_size_discard=2)
+    # Clean all faulty positions and samples => Final table
+
+    recalibrated_revised_INDEL_df = revised_df(compare_snp_matrix_INDEL_intermediate_df,
+                                               path_compare,
+                                               complex_pos=complex_variants,
+                                               min_freq_include=0.8,
+                                               min_threshold_discard_uncov_sample=0.6,
+                                               min_threshold_discard_uncov_pos=0.6,
+                                               min_threshold_discard_htz_sample=0.6,
+                                               min_threshold_discard_htz_pos=0.6,
+                                               min_threshold_discard_all_pos=0.6,
+                                               min_threshold_discard_all_sample=0.6,
+                                               remove_faulty=True,
+                                               drop_samples=True,
+                                               drop_positions=True,
+                                               windos_size_discard=2)
     recalibrated_revised_INDEL_df.to_csv(
         compare_snp_matrix_recal, sep="\t", index=False)
+
+    # Matrix to pairwise and mwk
 
     ddtb_compare(compare_snp_matrix_recal, distance=5)
 

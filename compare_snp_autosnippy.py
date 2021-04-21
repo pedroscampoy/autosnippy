@@ -350,6 +350,7 @@ def remove_position_range(df):
     bed_df[['#CHROM', 'REF', 'start', 'ALT']
            ] = INDELs['Position'].str.split('|', expand=True)
     bed_df['start'] = bed_df['start'].astype(int)
+    # include only positions in +1 position
     bed_df['start'] = bed_df['start'] + 1
     bed_df['lenREF'] = bed_df['REF'].str.len()
     bed_df['lenALT'] = bed_df['ALT'].str.len()
@@ -359,7 +360,7 @@ def remove_position_range(df):
     for _, row in df.iterrows():
         position_number = int(row.Position.split("|")[2])
         if any(start <= position_number <= end for (start, end) in zip(bed_df.start.values.tolist(), bed_df.end.values.tolist())):
-            logger.info(
+            logger.debug(
                 'Position: {} removed found in INDEL'.format(row.Position))
             df = df[df.Position != row.Position]
     return df
@@ -611,12 +612,12 @@ def revised_df(df, out_dir=False, complex_pos=False, min_freq_include=0.8, min_t
         logger.info('FAULTY POSITIONS:\n{}\n\nFAULTY SAMPLES:\n{}'.format(
             ("\n").join(faulty_positions), ("\n").join(faulty_samples)))
 
-    # Remove close mutations
-    df = df[df.window_10 <= 1]
-
     clustered_positions = df['POS'][df.window_10 > 1].tolist()
     logger.debug('CLUSTERED POSITIONS' + "\n" +
                  (',').join(clustered_positions))
+
+    # Remove close mutations
+    df = df[df.window_10 <= 1]
 
     # Remove complex variants
     if complex_pos:
@@ -810,8 +811,8 @@ def recheck_variant_rawvcf_intermediate(row, positions, alt_snps, variant_folder
                         position = positions[position_index]
                         alt_snp = alt_snps[position_index]
 
-                        logger.debug('REC: POS: {},  ALT: {}, DP: {}, FREQ: {}\nORI==> POS: {}, ALT: {}, FREQ: {}'.format(
-                            vcf_position, vcf_alt_base, vcf_depth, vcf_alt_freq, position, alt_snps, row[position_index]))
+                        logger.debug('REC:SAMPLE: {}\n POS: {},  ALT: {}, DP: {}, FREQ: {}\nORI==> POS: {}, ALT: {}, FREQ: {}'.format(
+                            sample, vcf_position, vcf_alt_base, vcf_depth, vcf_alt_freq, position, alt_snp, row[position_index]))
 
                         if vcf_depth <= min_cov_low_freq and vcf_depth > 0:
                             logger.debug('Position: {} LOWDEPTH: {}, DP: {}'.format(
@@ -819,19 +820,19 @@ def recheck_variant_rawvcf_intermediate(row, positions, alt_snps, variant_folder
                             row[position_index] = '?'
                         else:
                             if vcf_depth >= min_cov_low_freq and alt_snp == vcf_alt_base and vcf_alt_freq >= 0.1:
-                                logger.debug('Position: {} RECOVERED from 0 to: {}'.format(
-                                    vcf_position, vcf_alt_freq))
+                                logger.debug('Position: {} RECOVERED from 0 to: {} in sample {}'.format(
+                                    vcf_position, vcf_alt_freq, sample))
                                 row[position_index] = vcf_alt_freq
                             # Handle INDEL inconsistency between alt positions
                             elif (len(alt_snp) > 1) and vcf_alt_freq >= 0.1:
-                                logger.debug('Position INDEL: {} RECOVERED from 0 to: {}'.format(
-                                    vcf_position, vcf_alt_freq))
+                                logger.debug('Position INDEL: {} RECOVERED from 0 to: {} in sample {}'.format(
+                                    vcf_position, vcf_alt_freq, sample))
                                 row[position_index] = vcf_alt_freq
                             else:
-                                logger.debug('ELSE POS: {} SAMPLE: {}, ALT: {}, OGALT: {}, FREQ: {}, OGFREQ: {}, DP: {}'.format(
-                                    vcf_position, sample, alt_snp, vcf_alt_base, vcf_alt_freq, row[position_index], vcf_depth))
-                                logger.debug('con1 depth: {}, con2 alt: {}, con3 altfr: {}'.format(
-                                    vcf_depth <= min_cov_low_freq, alt_snp == vcf_alt_base, vcf_alt_freq <= 0.1))
+                                logger.debug('ELSE SAMPLE: {}, POS: {} SAMPLE: {}, ALT: {}, OGALT: {}, FREQ: {}, OGFREQ: {}, DP: {}'.format(
+                                    sample, vcf_position, sample, alt_snp, vcf_alt_base, vcf_alt_freq, row[position_index], vcf_depth))
+                                # logger.debug('con1 depth: {}, con2 alt: {}, con3 altfr: {}'.format(
+                                #     vcf_depth <= min_cov_low_freq, alt_snp == vcf_alt_base, vcf_alt_freq <= 0.1))
 
     return row
 
