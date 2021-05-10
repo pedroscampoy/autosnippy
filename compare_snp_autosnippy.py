@@ -613,8 +613,10 @@ def revised_df(df, out_dir=False, complex_pos=False, min_freq_include=0.8, min_t
             ("\n").join(faulty_positions), ("\n").join(faulty_samples)))
 
     clustered_positions = df['POS'][df.window_10 > 1].tolist()
+    if len(clustered_positions) == 0:
+        clustered_positions = [0]
     logger.debug('CLUSTERED POSITIONS' + "\n" +
-                 (',').join(clustered_positions))
+                 (',').join([str(x) for x in clustered_positions]))
 
     # Remove close mutations
     df = df[df.window_10 <= 1]

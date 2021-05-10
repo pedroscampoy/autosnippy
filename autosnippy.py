@@ -400,9 +400,13 @@ def main():
 
     # coverage OUTPUT SUMMARY
     ######################################################
+    prior_recal = datetime.datetime.now()
     logger.info(GREEN + "Creating summary report for coverage result in group " +
                 group_name + END_FORMATTING)
     obtain_group_cov_stats(out_stats_dir, group_name)
+    after_recal = datetime.datetime.now()
+    logger.info("Done with report for coverage: %s" %
+                (after_recal - prior_recal))
 
     # READS and VARIANTS OUTPUT SUMMARY
     ######################################################
