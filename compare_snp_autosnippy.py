@@ -260,18 +260,27 @@ def extract_complex_list(variant_dir):
     return sorted(set(all_complex))
 
 
-def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, min_alt_dp=10, only_snp=False):
+def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, min_alt_dp=10, only_snp=False, samples=False):
+    print("SAPMELSAMDS", samples)
     df = pd.DataFrame(columns=['REGION', 'POS', 'REF', 'ALT'])
     # Merge all raw
     for root, _, files in os.walk(variant_dir):
         for name in files:
             if name == "snps.all.ivar.tsv":
                 sample = root.split("/")[-1]
-                logger.debug("Adding: " + sample)
-                filename = os.path.join(root, name)
-                dfv = import_tsv_variants(
-                    filename, sample, min_total_depth=4, min_alt_dp=4, only_snp=only_snp)
-                df = df.merge(dfv, how='outer')
+                if samples == False:
+                    logger.debug("Adding: " + sample)
+                    filename = os.path.join(root, name)
+                    dfv = import_tsv_variants(
+                        filename, sample, min_total_depth=4, min_alt_dp=4, only_snp=only_snp)
+                    df = df.merge(dfv, how='outer')
+                else:
+                    if sample in samples:
+                        logger.debug("Adding: " + sample)
+                        filename = os.path.join(root, name)
+                        dfv = import_tsv_variants(
+                            filename, sample, min_total_depth=4, min_alt_dp=4, only_snp=only_snp)
+                        df = df.merge(dfv, how='outer')
     # Rounf frequencies
     df = df.round(2)
     # Remove <= 0.1 (parameter in function)
@@ -289,11 +298,19 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
             if name == "snps.all.ivar.tsv":
                 filename = os.path.join(root, name)
                 sample = root.split("/")[-1]
-                logger.debug("Adding lowfreqs: " + sample)
-                dfl = extract_lowfreq(
-                    filename, sample, min_total_depth=4, min_alt_dp=min_alt_dp, only_snp=only_snp)
-                df[sample].update(df[['REGION', 'POS', 'REF', 'ALT']].merge(
-                    dfl, on=['REGION', 'POS', 'REF', 'ALT'], how='left')[sample])
+                if samples == False:
+                    logger.debug("Adding lowfreqs: " + sample)
+                    dfl = extract_lowfreq(
+                        filename, sample, min_total_depth=4, min_alt_dp=min_alt_dp, only_snp=only_snp)
+                    df[sample].update(df[['REGION', 'POS', 'REF', 'ALT']].merge(
+                        dfl, on=['REGION', 'POS', 'REF', 'ALT'], how='left')[sample])
+                else:
+                    if sample in samples:
+                        logger.debug("Adding lowfreqs: " + sample)
+                        dfl = extract_lowfreq(
+                            filename, sample, min_total_depth=4, min_alt_dp=min_alt_dp, only_snp=only_snp)
+                        df[sample].update(df[['REGION', 'POS', 'REF', 'ALT']].merge(
+                            dfl, on=['REGION', 'POS', 'REF', 'ALT'], how='left')[sample])
 
     # Include uncovered
     samples_coverage = df.columns.tolist()[4:]
@@ -317,7 +334,7 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
     df = df.fillna(0)
 
     # Determine N (will help in poorly covered determination)
-    def estract_sample_count(row):
+    def extract_sample_count(row):
         count_list = [i not in ['!', 0, '0'] for i in row[4:]]
         samples = np.array(df.columns[4:])
         # samples[np.array(count_list)] filter array with True False array
@@ -329,7 +346,7 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
         df = df.drop('Position', axis=1)
 
     df[['N', 'Samples']] = df.apply(
-        estract_sample_count, axis=1, result_type='expand')
+        extract_sample_count, axis=1, result_type='expand')
 
     df['Position'] = df.apply(lambda x: ('|').join(
         [x['REGION'], x['REF'], str(x['POS']), x['ALT']]), axis=1)
@@ -1198,40 +1215,101 @@ if __name__ == '__main__':
 
     group_compare = os.path.join(output_dir, group_name)
     compare_snp_matrix = group_compare + ".tsv"
+    input_dir = os.path.abspath(args.input_dir)
+
+    out_variant_dir = os.path.join(input_dir, "Variants")
+    out_stats_dir = os.path.join(input_dir, "Stats")
+    out_stats_coverage_dir = os.path.join(
+        out_stats_dir, "Coverage")  # subfolder
+
+    if args.sample_list:
+        sample_file = os.path.abspath(args.sample_list)
+        with open(sample_file, 'r') as f:
+            content = f.read()
+            sample_list = content.split('\n')
+            sample_list = [x.strip() for x in sample_list]
+            sample_list = [x for x in sample_list if x != ""]
 
     if args.only_compare == False:
-        input_dir = os.path.abspath(args.input_dir)
 
-        if args.recalibrate == False:
-            ddtb_add(input_dir, group_compare, sample_filter=args.sample_list)
-            ddtb_compare(compare_snp_matrix, distance=args.distance)
-        else:
-            coverage_dir = os.path.abspath(args.recalibrate)
-            compare_snp_matrix_recal = group_compare + ".revised.final.tsv"
-            compare_snp_matrix_recal_intermediate = group_compare + ".revised_intermediate.tsv"
-            compare_snp_matrix_recal_mpileup = group_compare + \
-                ".revised_intermediate_mpileup.tsv"
-            recalibrated_snp_matrix_intermediate = ddbb_create_intermediate(
-                input_dir, coverage_dir, min_freq_discard=0.1, min_alt_dp=10, only_snp=False)
-            recalibrated_snp_matrix_intermediate.to_csv(
-                compare_snp_matrix_recal_intermediate, sep="\t", index=False)
+        # SNP COMPARISON using tsv variant files
+        ######################################################
+        logger.info("\n\n" + BLUE + BOLD + "STARTING COMPARISON IN GROUP: " +
+                    group_name + END_FORMATTING + "\n")
 
-            prior_recal = datetime.datetime.now()
+        today = str(datetime.date.today())
+        check_create_dir(output_dir)
+        folder_compare = today + "_" + group_name
+        path_compare = os.path.join(output_dir, folder_compare)
+        check_create_dir(path_compare)
+        full_path_compare = os.path.join(path_compare, group_name)
 
-            recalibrated_snp_matrix_mpileup = recalibrate_ddbb_vcf_intermediate(
-                compare_snp_matrix_recal_intermediate, args.bam_folder, min_cov_low_freq=10)
-            recalibrated_snp_matrix_mpileup.to_csv(
-                compare_snp_matrix_recal_mpileup, sep="\t", index=False)
+        compare_snp_matrix_recal = full_path_compare + ".revised.final.tsv"
+        compare_snp_matrix_recal_intermediate = full_path_compare + ".revised_intermediate.tsv"
+        compare_snp_matrix_recal_mpileup = full_path_compare + \
+            ".revised_intermediate_vcf.tsv"
+        compare_snp_matrix_INDEL_intermediate = full_path_compare + \
+            ".revised_INDEL_intermediate.tsv"
 
-            after_recal = datetime.datetime.now()
-            logger.debug("Done with recalibration vcf: %s" %
-                         (after_recal - prior_recal))
+        # Create intermediate
 
-            recalibrated_revised_df = revised_df(recalibrated_snp_matrix_mpileup, output_dir, min_freq_include=0.75, min_threshold_discard_uncov_sample=0.4, min_threshold_discard_uncov_pos=0.4,
-                                                 min_threshold_discard_htz_sample=0.6, min_threshold_discard_htz_pos=0.6, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True)
-            recalibrated_revised_df.to_csv(
-                compare_snp_matrix_recal, sep="\t", index=False)
-            ddtb_compare(compare_snp_matrix_recal, distance=args.distance)
+        recalibrated_snp_matrix_intermediate = ddbb_create_intermediate(
+            out_variant_dir, out_stats_coverage_dir, min_freq_discard=0.1, min_alt_dp=10, only_snp=False, samples=sample_list)
+        recalibrated_snp_matrix_intermediate.to_csv(
+            compare_snp_matrix_recal_intermediate, sep="\t", index=False)
+
+        # Recalibrate intermediate with VCF
+
+        prior_recal = datetime.datetime.now()
+        recalibrated_snp_matrix_mpileup = recalibrate_ddbb_vcf_intermediate(
+            compare_snp_matrix_recal_intermediate, out_variant_dir, min_cov_low_freq=10)
+        recalibrated_snp_matrix_mpileup.to_csv(
+            compare_snp_matrix_recal_mpileup, sep="\t", index=False)
+
+        after_recal = datetime.datetime.now()
+        logger.debug("Done with recalibration vcf: %s" %
+                     (after_recal - prior_recal))
+
+        # Remove SNPs located within INDELs
+
+        compare_snp_matrix_INDEL_intermediate_df = remove_position_range(
+            recalibrated_snp_matrix_mpileup)
+        compare_snp_matrix_INDEL_intermediate_df.to_csv(
+            compare_snp_matrix_INDEL_intermediate, sep="\t", index=False)
+
+        # Extract all positions marked as complex
+        complex_variants = extract_complex_list(out_variant_dir)
+        logger.debug('Complex positions in all samples:\n{}'.format(
+            (",".join([str(x) for x in complex_variants]))))
+
+        # Clean all faulty positions and samples => Final table
+
+        recalibrated_revised_INDEL_df = revised_df(compare_snp_matrix_INDEL_intermediate_df,
+                                                   path_compare,
+                                                   complex_pos=complex_variants,
+                                                   min_freq_include=0.8,
+                                                   min_threshold_discard_uncov_sample=0.6,
+                                                   min_threshold_discard_uncov_pos=0.6,
+                                                   min_threshold_discard_htz_sample=0.6,
+                                                   min_threshold_discard_htz_pos=0.6,
+                                                   min_threshold_discard_all_pos=0.6,
+                                                   min_threshold_discard_all_sample=0.6,
+                                                   remove_faulty=True,
+                                                   drop_samples=True,
+                                                   drop_positions=True,
+                                                   windos_size_discard=2)
+        recalibrated_revised_INDEL_df.to_csv(
+            compare_snp_matrix_recal, sep="\t", index=False)
+
+        # Matrix to pairwise and mwk
+
+        ddtb_compare(compare_snp_matrix_recal, distance=5)
+
+        logger.info("\n\n" + MAGENTA + BOLD + "COMPARING FINISHED IN GROUP: " +
+                    group_name + END_FORMATTING + "\n")
+
+        logger.info("\n\n" + MAGENTA + BOLD +
+                    "#####END OF PIPELINE AUTOSNIPPY ANALYSIS#####" + END_FORMATTING + "\n")
     else:
         compare_matrix = os.path.abspath(args.only_compare)
         ddtb_compare(compare_matrix, distance=args.distance)
