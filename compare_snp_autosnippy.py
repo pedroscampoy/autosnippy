@@ -272,14 +272,14 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
                     logger.debug("Adding: " + sample)
                     filename = os.path.join(root, name)
                     dfv = import_tsv_variants(
-                        filename, sample, min_total_depth=4, min_alt_dp=4, only_snp=only_snp)
+                        filename, sample, min_total_depth=4, min_alt_dp=min_alt_dp, only_snp=only_snp)
                     df = df.merge(dfv, how='outer')
                 else:
                     if sample in samples:
                         logger.debug("Adding: " + sample)
                         filename = os.path.join(root, name)
                         dfv = import_tsv_variants(
-                            filename, sample, min_total_depth=4, min_alt_dp=4, only_snp=only_snp)
+                            filename, sample, min_total_depth=4, min_alt_dp=min_alt_dp, only_snp=only_snp)
                         df = df.merge(dfv, how='outer')
     # Rounf frequencies
     df = df.round(2)
