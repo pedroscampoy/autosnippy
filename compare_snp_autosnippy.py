@@ -280,7 +280,12 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
                         filename = os.path.join(root, name)
                         dfv = import_tsv_variants(
                             filename, sample, min_total_depth=4, min_alt_dp=min_alt_dp, only_snp=only_snp)
-                        df = df.merge(dfv, how='outer')
+                        if dfv.shape[0] > 0:
+                            df = df.merge(dfv, how='outer')
+                        else:
+                            logger.debug(msg)(sample + " HAS NO VAIANTS")
+                            samples.remove(sample)
+
     # Rounf frequencies
     df = df.round(2)
     # Remove <= 0.1 (parameter in function)
