@@ -520,7 +520,7 @@ def remove_low_quality(output_dir, min_coverage=20, min_hq_snp=2, type_remove='U
                 if sample in uncovered_samples:
                     os.remove(filename)
 
-    # return uncovered_samples
+    return uncovered_samples
 
 
 def clean_unwanted_files(args):

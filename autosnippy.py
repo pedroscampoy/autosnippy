@@ -416,8 +416,10 @@ def main():
 
     # REMOVE UNCOVERED
     ##############################################################################################################################
-    #logger.info(GREEN + "Removing low quality samples in group " + group_name + END_FORMATTING)
-    #remove_low_quality(output, min_coverage=args.mincoverage, min_hq_snp=args.min_snp, type_remove='Uncovered')
+    logger.info(GREEN + "Removing low quality samples in group " +
+                group_name + END_FORMATTING)
+    uncovered_samples = remove_low_quality(output, min_coverage=args.coverage20,
+                                           min_hq_snp=args.min_snp, type_remove='Uncovered')
 
     # RUN SNIPPY CORE
     ##############################################################################################################################
