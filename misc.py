@@ -259,9 +259,18 @@ def calculate_cov_stats(file_cov):
 
 def obtain_group_cov_stats(directory, group_name):
     directory_path = os.path.abspath(directory)
+    samples_to_skip = []
+    previous_stat = False
 
     output_group_name = group_name + ".coverage.summary.tab"
     output_file = os.path.join(directory_path, output_group_name)
+
+    if os.path.exists(output_file):
+        previous_stat = True
+        df_stat = pd.read_csv(output_file, sep="\t")
+        samples_to_skip = df_stat["#SAMPLE"].tolist()
+        logger.debug("Skipped samples for coverage calculation:" +
+                     (",").join(samples_to_skip))
 
     columns = ["#SAMPLE", "MEAN_COV", "UNMMAPED_PROP", "COV1-10X",
                "COV10-20X", "COV>20X", "COV>50X", "COV>100X", "COV>500X", "COV>1000X"]
@@ -272,14 +281,20 @@ def obtain_group_cov_stats(directory, group_name):
         for name in files:
             if name.endswith('.cov'):
                 filename = os.path.join(root, name)
+                sample = name.split(".")[0]
                 #df[columns] = df.apply(calculate_cov_stats(filename), axis=1, result_type="expand")
-                files_list.append(filename)
+                if not sample in samples_to_skip:
+                    files_list.append(filename)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
         dfs = executor.map(calculate_cov_stats, files_list)
     df = pd.DataFrame(dfs, columns=columns)
 
-    df.to_csv(output_file, sep="\t", index=False)
+    if previous_stat:
+        df = pd.concat([df_stat, df], ignore_index=True, sort=True)
+        df.to_csv(output_file, sep="\t", index=False)
+    else:
+        df.to_csv(output_file, sep="\t", index=False)
 
 
 def obtain_group_cov_stats_L(directory, group_name):
@@ -352,10 +367,13 @@ def extract_mapped_reads(output_dir, sample):
                     properly_paired = line.split(" ")[0]
                     paired_percentage = line.split("(")[-1].split("%")[0]
 
-        logger.debug(len([x for x in [reads_mapped, mappep_percentage,
-                                      properly_paired, paired_percentage] if str(x).isdigit()]))
+        # logger.debug((",").join(
+        #     [reads_mapped, mappep_percentage, properly_paired, paired_percentage]))
 
-        if len([x for x in [reads_mapped, mappep_percentage, properly_paired, paired_percentage] if str(x).isdigit()]) == 4:
+        # logger.debug(len([x for x in [reads_mapped, mappep_percentage,
+        #                               properly_paired, paired_percentage] if x != 0]))
+
+        if len([x for x in [reads_mapped, mappep_percentage, properly_paired, paired_percentage] if x != 0]):
             return int(reads_mapped), float(mappep_percentage), int(properly_paired), float(paired_percentage)
         else:
             return 0, 0, 0, 0
@@ -410,8 +428,8 @@ def obtain_overal_stats(output_dir, group):
                     output_dir, x['#SAMPLE']), axis=1, result_type="expand")
                 df[['mapped_reads', 'perc_mapped', 'paired_mapped', 'perc_paired']] = df.parallel_apply(
                     lambda x: extract_mapped_reads(output_dir, x['#SAMPLE']), axis=1, result_type="expand")
-                df[['N_groups', 'N_individual', 'N_leading', 'N_tailing', 'N_sum_len', 'N_total_perc', 'N_mean_len']] = df.parallel_apply(
-                    lambda x: extract_n_consensus(output_dir, x['#SAMPLE']), axis=1, result_type="expand")
+                # df[['N_groups', 'N_individual', 'N_leading', 'N_tailing', 'N_sum_len', 'N_total_perc', 'N_mean_len']] = df.parallel_apply(
+                # lambda x: extract_n_consensus(output_dir, x['#SAMPLE']), axis=1, result_type="expand")
     df.to_csv(overal_stat_file, sep="\t", index=False)
 
 

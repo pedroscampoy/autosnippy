@@ -283,7 +283,7 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
                         if dfv.shape[0] > 0:
                             df = df.merge(dfv, how='outer')
                         else:
-                            logger.debug(msg)(sample + " HAS NO VAIANTS")
+                            logger.debug(sample + " HAS NO VAIANTS")
                             samples.remove(sample)
 
     # Rounf frequencies

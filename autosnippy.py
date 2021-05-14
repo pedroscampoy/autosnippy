@@ -425,7 +425,7 @@ def main():
     logger.info(GREEN + "Running snippy-core " +
                 group_name + END_FORMATTING)
     run_snippy_core(out_variant_dir, out_core_dir, reference)
-
+    """
     logger.info(GREEN + "Adapting core-snp to compare format " +
                 group_name + END_FORMATTING)
     core_vcf_file = os.path.join(out_core_dir, "core.vcf")
@@ -458,7 +458,7 @@ def main():
     remove_df.to_csv(core_vcf_file_removed, sep="\t", index=False)
 
     ddtb_compare(core_vcf_file_removed, distance=10)
-
+    """
     #ANNOTATION WITH SNPEFF AND USER INPUT ##############
     #####################################################
     logger.info("\n\n" + BLUE + BOLD + "STARTING ANNOTATION IN GROUP: " +
