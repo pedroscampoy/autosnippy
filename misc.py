@@ -378,7 +378,7 @@ def extract_mapped_reads(output_dir, sample):
         else:
             return 0, 0, 0, 0
     else:
-        print("FILE " + filename + " NOT FOUND")
+        logger.info("FILE " + filename + " NOT FOUND")
         return None
 
 
@@ -411,7 +411,7 @@ def extract_n_consensus(output_dir, sample):
                 return(0, 0, 0, 0, 0, 0, 0)
 
     else:
-        print("FILE " + filename + " NOT FOUND")
+        logger.info("FILE " + filename + " NOT FOUND")
         return None
 
 
@@ -464,11 +464,12 @@ def edit_sample_list(file_list, sample_list):
                 fout.write(line + "\n")
 
 
-def remove_low_quality(output_dir, min_coverage=20, min_hq_snp=2, type_remove='Uncovered'):
+def remove_low_quality(output_dir, min_coverage=30, min_hq_snp=8, type_remove='Uncovered'):
     right_now = str(datetime.datetime.now())
     right_now_full = "_".join(right_now.split(" "))
     output_dir = os.path.abspath(output_dir)
     uncovered_dir = os.path.join(output_dir, type_remove)  # Uncovered or Mixed
+    uncovered_dir_variants = os.path.join(uncovered_dir, "Variants")
 
     check_create_dir(uncovered_dir)
 
@@ -483,6 +484,16 @@ def remove_low_quality(output_dir, min_coverage=20, min_hq_snp=2, type_remove='U
                 if name.endswith('overal.stats.tab'):
                     coverage_stat_file = filename
                     stats_df = pd.read_csv(coverage_stat_file, sep="\t")
+                    stats_df = stats_df.fillna(0)
+
+                    # Handle repeated names
+                    stats_df['HQ_SNP'] = stats_df['HQ_SNP'].astype(str)
+                    def f(x): return x if x.replace(
+                        '.', '', 1).isdigit() else max(x.strip("()").split(","))
+                    stats_df['HQ_SNP'] = stats_df.apply(
+                        lambda x: f(x.HQ_SNP), axis=1)
+
+                    stats_df['HQ_SNP'] = stats_df['HQ_SNP'].astype(float)
                     uncovered_samples = stats_df['#SAMPLE'][(stats_df['UNMMAPED_PROP'] >= min_coverage) |
                                                             (stats_df['HQ_SNP'] < min_hq_snp)].tolist()
                     # create a df with only covered to replace the original
@@ -499,26 +510,54 @@ def remove_low_quality(output_dir, min_coverage=20, min_hq_snp=2, type_remove='U
                     if len(uncovered_samples) > 0:
                         uncovered_df.to_csv(
                             uncovered_table_file, sep="\t", index=False)
+                elif name.endswith('.coverage.summary.tab'):
+                    covstats_df = pd.read_csv(filename, sep="\t")
+                    final_covstat = filename
 
     uncovered_samples = [str(x) for x in uncovered_samples]
+    def_covstats_df = covstats_df[~covstats_df['#SAMPLE'].isin(
+        uncovered_samples)]
+    def_covstats_df.to_csv(final_covstat, sep="\t", index=False)
 
+    logger.debug("Uncovered_samples:")
+    logger.debug(uncovered_samples)
+
+    # Remove other files
+    for root, _, files in os.walk(output_dir):
+        for name in files:
+            if name.endswith('.cov') or name.endswith('.bamstats'):
+                filename = os.path.join(root, name)
+                sample = re.search(r'^(.+?)[.]', name).group(1)
+                if sample in uncovered_samples:
+                    logger.debug(
+                        "Removing FAULTY file {}".format(filename))
+                    os.remove(filename)
+
+    # MOVE Fastq
     for root, _, files in os.walk(output_dir):
         if root == output_dir:
             for name in files:
                 if name.endswith('fastq.gz'):
                     filename = os.path.join(root, name)
-                    sample = re.search(r'^(.+?)[._-]', name).group(1)
+                    sample = re.search(r'^(.+?)[._]', name).group(1)
                     if sample in uncovered_samples:
                         destination_file = os.path.join(uncovered_dir, name)
+                        logger.debug("Moving FAULTY fasta {} TO {}".format(
+                            filename, destination_file))
                         shutil.move(filename, destination_file)
 
+    # Move Variant Folder
+
     for root, _, files in os.walk(output_dir):
-        if 'Trimmed' in root or 'Quality' in root:
-            for name in files:
-                filename = os.path.join(root, name)
-                sample = re.search(r'^(.+?)[._-]', name).group(1)
-                if sample in uncovered_samples:
-                    os.remove(filename)
+        if root.endswith('Variants') and not "Uncovered" in root:
+            if len(uncovered_samples) > 0:
+                for uncovered in uncovered_samples:
+                    filename = os.path.join(root, uncovered)
+                    destination_file = os.path.join(
+                        uncovered_dir_variants, uncovered)
+                    logger.debug("Moving FAULTY folder {} TO {}".format(
+                        filename, destination_file))
+                    shutil.move(filename, destination_file)
 
     return uncovered_samples
 

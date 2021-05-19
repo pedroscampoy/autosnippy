@@ -92,10 +92,10 @@ def main():
         quality_group = parser.add_argument_group(
             'Quality parameters', 'parameters for diferent triming conditions')
 
-        quality_group.add_argument('-c', '--coverage20', type=int, default=90, required=False,
-                                   help='Minimum percentage of coverage at 20x to clasify as uncovered (Default 90)')
+        quality_group.add_argument('-c', '--coverage20', type=int, default=50, required=False,
+                                   help='Minimum percentage of coverage at 20x to clasify as uncovered (Default 50)')
         quality_group.add_argument('-n', '--min_snp', type=int, required=False,
-                                   default=1, help='SNP number to pass quality threshold')
+                                   default=30, help='SNP number to pass quality threshold')
 
         output_group = parser.add_argument_group(
             'Output', 'Required parameter to output results')
@@ -134,6 +134,8 @@ def main():
 
         compare_group.add_argument('-S', '--only_snp', required=False,
                                    action='store_true', help='Use INDELS while comparing')
+        compare_group.add_argument('--core', required=False,
+                                   action='store_true', help='Run snippy-core')
 
         arguments = parser.parse_args()
 
@@ -423,44 +425,45 @@ def main():
 
     # RUN SNIPPY CORE
     ##############################################################################################################################
-    check_create_dir(out_core_dir)
-    logger.info(GREEN + "Running snippy-core " +
-                group_name + END_FORMATTING)
-    run_snippy_core(out_variant_dir, out_core_dir, reference)
-    """
-    logger.info(GREEN + "Adapting core-snp to compare format " +
-                group_name + END_FORMATTING)
-    core_vcf_file = os.path.join(out_core_dir, "core.vcf")
-    core_vcf_file_adapted = os.path.join(out_core_dir, "core.vcf.adapted.tsv")
-    core_vcf_file_removed = os.path.join(
-        out_core_dir, "core.vcf.adapted.final.tsv")
+    if args.core:
+        check_create_dir(out_core_dir)
+        logger.info(GREEN + "Running snippy-core " +
+                    group_name + END_FORMATTING)
+        run_snippy_core(out_variant_dir, out_core_dir, reference)
+        
+        logger.info(GREEN + "Adapting core-snp to compare format " +
+                    group_name + END_FORMATTING)
+        core_vcf_file = os.path.join(out_core_dir, "core.vcf")
+        core_vcf_file_adapted = os.path.join(out_core_dir, "core.vcf.adapted.tsv")
+        core_vcf_file_removed = os.path.join(
+            out_core_dir, "core.vcf.adapted.final.tsv")
 
-    core_vcf_df_adapted = import_VCF4_core_to_compare(core_vcf_file)
-    core_vcf_df_adapted.to_csv(core_vcf_file_adapted, sep="\t", index=False)
+        core_vcf_df_adapted = import_VCF4_core_to_compare(core_vcf_file)
+        core_vcf_df_adapted.to_csv(core_vcf_file_adapted, sep="\t", index=False)
 
-    logger.info(GREEN + "Obtaining clustered positions " +
-                group_name + END_FORMATTING)
+        logger.info(GREEN + "Obtaining clustered positions " +
+                    group_name + END_FORMATTING)
 
-    close_positions_list = extract_close_snps(
-        core_vcf_df_adapted, snps_in_10=1)
-    logger.info(GREEN + "Obtaining uncovered positions " +
-                group_name + END_FORMATTING)
-    uncovered_list = identify_uncovered(
-        out_stats_coverage_dir, min_coverage=10, nocall_fr=0.5)
+        close_positions_list = extract_close_snps(
+            core_vcf_df_adapted, snps_in_10=1)
+        logger.info(GREEN + "Obtaining uncovered positions " +
+                    group_name + END_FORMATTING)
+        uncovered_list = identify_uncovered(
+            out_stats_coverage_dir, min_coverage=10, nocall_fr=0.5)
 
-    logger.debug('Clustered positions in core SNP:\n{}'.format(
-        (",".join([str(x) for x in close_positions_list]))))
-    logger.debug('Uncovered positions in all samples:\n{}'.format(
-        (",".join([str(x) for x in uncovered_list]))))
+        logger.debug('Clustered positions in core SNP:\n{}'.format(
+            (",".join([str(x) for x in close_positions_list]))))
+        logger.debug('Uncovered positions in all samples:\n{}'.format(
+            (",".join([str(x) for x in uncovered_list]))))
 
-    to_remove_list = close_positions_list + uncovered_list
+        to_remove_list = close_positions_list + uncovered_list
 
-    remove_df = remove_position_from_compare(
-        core_vcf_df_adapted, to_remove_list)
-    remove_df.to_csv(core_vcf_file_removed, sep="\t", index=False)
+        remove_df = remove_position_from_compare(
+            core_vcf_df_adapted, to_remove_list)
+        remove_df.to_csv(core_vcf_file_removed, sep="\t", index=False)
 
-    ddtb_compare(core_vcf_file_removed, distance=10)
-    """
+        ddtb_compare(core_vcf_file_removed, distance=10)
+    
     #ANNOTATION WITH SNPEFF AND USER INPUT ##############
     #####################################################
     logger.info("\n\n" + BLUE + BOLD + "STARTING ANNOTATION IN GROUP: " +

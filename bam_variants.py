@@ -66,16 +66,18 @@ def run_snippy(r1, r2, reference, output_dir, sample, threads=16, minqual=20, mi
     execute_subprocess(cmd)
 
 
-def run_snippy_core(input_dir, output_dir, reference):
+def run_snippy_core(input_dir, output_dir, reference, filter_sample = []):
     samples_snippy = []
 
     output_dir = output_dir + "/core"
 
     for root, dirs, files in os.walk(input_dir):
         for name in dirs:
-            if root == input_dir:
+            if root == input_dir and not name in filter_sample:
                 foldername = os.path.join(root, name)
                 samples_snippy.append(foldername)
+            elif root == input_dir and name in filter_sample:
+                logger.debug(name + " discarded from core FAULTY")
 
     cmd = ["snippy-core", "-p", output_dir,
            "--ref", reference] + samples_snippy
