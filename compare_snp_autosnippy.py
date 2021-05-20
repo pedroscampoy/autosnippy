@@ -245,18 +245,26 @@ def extract_uncovered(cov_file, min_total_depth=4):
     return df
 
 
-def extract_complex_list(variant_dir):
+def extract_complex_list(variant_dir, samples=False):
     all_complex = []
     for root, _, files in os.walk(variant_dir):
         for name in files:
             if name == "snps.all.ivar.tsv":
                 sample = root.split("/")[-1]
-                logger.debug("Obtaining complex in: " + sample)
                 filename = os.path.join(root, name)
-                df = pd.read_csv(filename, sep="\t")
-                sample_complex = df[~df.OLDVAR.isna()]['POS'].tolist()
-                sample_complex = [int(x) for x in sample_complex]
-                all_complex = all_complex + sample_complex
+                if samples == False:
+                    logger.debug("Obtaining complex in: " + sample)
+                    df = pd.read_csv(filename, sep="\t")
+                    sample_complex = df[~df.OLDVAR.isna()]['POS'].tolist()
+                    sample_complex = [int(x) for x in sample_complex]
+                    all_complex = all_complex + sample_complex
+                else:
+                    if sample in samples:
+                        logger.debug("Obtaining complex in: " + sample)
+                        df = pd.read_csv(filename, sep="\t")
+                        sample_complex = df[~df.OLDVAR.isna()]['POS'].tolist()
+                        sample_complex = [int(x) for x in sample_complex]
+                        all_complex = all_complex + sample_complex
     return sorted(set(all_complex))
 
 
@@ -643,14 +651,7 @@ def revised_df(df, out_dir=False, complex_pos=False, min_freq_include=0.8, min_t
     # Remove close mutations
     df = df[df.window_10 <= 1]
 
-    # Remove complex variants
-    if complex_pos:
-        logger.info('Removing complex positions')
-        logger.debug(complex_pos)
-        df = df[~df.POS.isin(complex_pos)]
-
-    # Uncovered to 0
-    # Number of valid to remove o valid and replace lowfreq
+    # Remove complex variantsmin_freq_include
     df['valid'] = df.apply(lambda x: sum(
         [i != '?' and i != '!' and float(i) >= min_freq_include for i in x[3:]]), axis=1)
     df = df[df.valid >= 1]
@@ -926,9 +927,6 @@ def recalibrate_ddbb_vcf_intermediate(snp_matrix_ddbb_file, variant_folder, min_
     final_df.columns = selected_columns + samples
 
     final_df = final_df.drop(['CHROM', 'REF', 'POS', 'ALT'], axis=1)
-
-    final_df.to_csv(
-        '/home/laura/ANALYSIS/MISC/Test_multithreading_vcf/final_df.tsv', sep="\t", index=False)
 
     # pool = multiprocessing.Pool(processes=num_processes)
     # final_df = pd.concat(pool.map(review_with_vcf, chunks))
@@ -1283,7 +1281,8 @@ if __name__ == '__main__':
             compare_snp_matrix_INDEL_intermediate, sep="\t", index=False)
 
         # Extract all positions marked as complex
-        complex_variants = extract_complex_list(out_variant_dir)
+        complex_variants = extract_complex_list(
+            out_variant_dir, samples=sample_list)
         logger.debug('Complex positions in all samples:\n{}'.format(
             (",".join([str(x) for x in complex_variants]))))
 
