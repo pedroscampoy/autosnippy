@@ -527,7 +527,8 @@ def remove_low_quality(output_dir, min_coverage=30, min_hq_snp=8, type_remove='U
         for name in files:
             if name.endswith('.cov') or name.endswith('.bamstats'):
                 filename = os.path.join(root, name)
-                sample = re.search(r'^(.+?)[.]', name).group(1)
+                #sample = re.search(r'^(.+?)[.]', name).group(1)
+                sample = name.split(".")[0]
                 if sample in uncovered_samples:
                     logger.debug(
                         "Removing FAULTY file {}".format(filename))
@@ -542,9 +543,10 @@ def remove_low_quality(output_dir, min_coverage=30, min_hq_snp=8, type_remove='U
                     sample = re.search(r'^(.+?)[._]', name).group(1)
                     if sample in uncovered_samples:
                         destination_file = os.path.join(uncovered_dir, name)
-                        logger.debug("Moving FAULTY fasta {} TO {}".format(
-                            filename, destination_file))
-                        shutil.move(filename, destination_file)
+                        if not os.path.exists(destination_file):
+                            logger.debug("Moving FAULTY fasta {} TO {}".format(
+                                filename, destination_file))
+                            shutil.move(filename, destination_file)
 
     # Move Variant Folder
 
@@ -555,9 +557,10 @@ def remove_low_quality(output_dir, min_coverage=30, min_hq_snp=8, type_remove='U
                     filename = os.path.join(root, uncovered)
                     destination_file = os.path.join(
                         uncovered_dir_variants, uncovered)
-                    logger.debug("Moving FAULTY folder {} TO {}".format(
-                        filename, destination_file))
-                    shutil.move(filename, destination_file)
+                    if not os.path.exists(destination_file):
+                        logger.debug("Moving FAULTY folder {} TO {}".format(
+                            filename, destination_file))
+                        shutil.move(filename, destination_file)
 
     return uncovered_samples
 

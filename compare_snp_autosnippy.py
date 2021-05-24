@@ -901,9 +901,6 @@ def recalibrate_ddbb_vcf_intermediate(snp_matrix_ddbb_file, variant_folder, min_
     #     chunks = [samples_df.iloc[i:i + chunk_size] for i in range(0, samples_df.shape[0], chunk_size)]
     #     logger.info('Chunks!, num_proc: {}, rows: {}, chunk_size: {}, #chunks: {}'.format(num_processes, samples_df.shape[0], chunk_size, len(chunks)))
 
-    samples_df.to_csv(
-        '/home/laura/ANALYSIS/MISC/Test_multithreading_vcf/sample_df_prev.tsv', sep="\t", index=False)
-
     # def review_with_vcf(df_chunk):
     #     df_chunk.apply(lambda x: recheck_variant_rawvcf_intermediate(x, POSs, ALTs, variant_folder, min_cov_low_freq=10), axis=1)
     #     return df_chunk
