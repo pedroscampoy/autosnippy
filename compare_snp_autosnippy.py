@@ -233,7 +233,7 @@ def extract_lowfreq(tsv_file, sample, min_total_depth=4, min_alt_dp=4, min_freq_
         return df
 
 
-def extract_uncovered(cov_file, min_total_depth=4):
+def extract_uncovered(cov_file):
     base_file = os.path.basename(cov_file)
     input_file = os.path.abspath(cov_file)
     sample = base_file.split(".")[0]
