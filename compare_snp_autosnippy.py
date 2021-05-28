@@ -268,7 +268,7 @@ def extract_complex_list(variant_dir, samples=False):
     return sorted(set(all_complex))
 
 
-def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, min_alt_dp=10, only_snp=False, samples=False):
+def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, min_alt_dp=12, only_snp=False, samples=False):
     print("SAPMELSAMDS", samples)
     df = pd.DataFrame(columns=['REGION', 'POS', 'REF', 'ALT'])
     # Merge all raw
@@ -280,14 +280,14 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
                     logger.debug("Adding: " + sample)
                     filename = os.path.join(root, name)
                     dfv = import_tsv_variants(
-                        filename, sample, min_total_depth=4, min_alt_dp=min_alt_dp, only_snp=only_snp)
+                        filename, sample, min_total_depth=4, min_alt_dp=10, only_snp=only_snp)
                     df = df.merge(dfv, how='outer')
                 else:
                     if sample in samples:
                         logger.debug("Adding: " + sample)
                         filename = os.path.join(root, name)
                         dfv = import_tsv_variants(
-                            filename, sample, min_total_depth=4, min_alt_dp=min_alt_dp, only_snp=only_snp)
+                            filename, sample, min_total_depth=4, min_alt_dp=10, only_snp=only_snp)
                         if dfv.shape[0] > 0:
                             df = df.merge(dfv, how='outer')
                         else:
@@ -853,6 +853,10 @@ def recheck_variant_rawvcf_intermediate(row, positions, alt_snps, variant_folder
                                 logger.debug('Position INDEL: {} RECOVERED from 0 to: {} in sample {}'.format(
                                     vcf_position, vcf_alt_freq, sample))
                                 row[position_index] = vcf_alt_freq
+                            elif alt_snp in vcf_alt_base:
+                                logger.debug('Position COMPLEX: {} RECOVERED from 0 in {} to: {} in {} sample {}'.format(
+                                    vcf_position, alt_snp, vcf_alt_freq, vcf_alt_base, sample))
+                                row[position_index] = vcf_alt_freq
                             else:
                                 logger.debug('ELSE SAMPLE: {}, POS: {} SAMPLE: {}, ALT: {}, OGALT: {}, FREQ: {}, OGFREQ: {}, DP: {}'.format(
                                     sample, vcf_position, sample, alt_snp, vcf_alt_base, vcf_alt_freq, row[position_index], vcf_depth))
@@ -862,7 +866,7 @@ def recheck_variant_rawvcf_intermediate(row, positions, alt_snps, variant_folder
     return row
 
 
-def recalibrate_ddbb_vcf_intermediate(snp_matrix_ddbb_file, variant_folder, min_cov_low_freq=10):
+def recalibrate_ddbb_vcf_intermediate(snp_matrix_ddbb_file, variant_folder, min_cov_low_freq=12):
     """
     https://github.com/nalepae/pandarallel
     """
@@ -906,7 +910,7 @@ def recalibrate_ddbb_vcf_intermediate(snp_matrix_ddbb_file, variant_folder, min_
     #     return df_chunk
 
     samples_df = samples_df.parallel_apply(lambda x: recheck_variant_rawvcf_intermediate(
-        x, POSs, ALTs, variant_folder, min_cov_low_freq=10), axis=1)
+        x, POSs, ALTs, variant_folder, min_cov_low_freq=min_cov_low_freq), axis=1)
 
     # with concurrent.futures.ThreadPoolExecutor(max_workers=num_processes) as executor:
     #     final_df = pd.concat(executor.map(review_with_vcf, chunks))
@@ -1254,7 +1258,7 @@ if __name__ == '__main__':
         # Create intermediate
 
         recalibrated_snp_matrix_intermediate = ddbb_create_intermediate(
-            out_variant_dir, out_stats_coverage_dir, min_freq_discard=0.1, min_alt_dp=10, only_snp=False, samples=sample_list)
+            out_variant_dir, out_stats_coverage_dir, min_freq_discard=0.1, min_alt_dp=15, only_snp=False, samples=sample_list)
         recalibrated_snp_matrix_intermediate.to_csv(
             compare_snp_matrix_recal_intermediate, sep="\t", index=False)
 
@@ -1289,12 +1293,12 @@ if __name__ == '__main__':
                                                    path_compare,
                                                    complex_pos=complex_variants,
                                                    min_freq_include=0.8,
-                                                   min_threshold_discard_uncov_sample=0.6,
-                                                   min_threshold_discard_uncov_pos=0.6,
-                                                   min_threshold_discard_htz_sample=0.6,
-                                                   min_threshold_discard_htz_pos=0.6,
-                                                   min_threshold_discard_all_pos=0.6,
-                                                   min_threshold_discard_all_sample=0.6,
+                                                   min_threshold_discard_uncov_sample=0.5,
+                                                   min_threshold_discard_uncov_pos=0.5,
+                                                   min_threshold_discard_htz_sample=0.5,
+                                                   min_threshold_discard_htz_pos=0.5,
+                                                   min_threshold_discard_all_pos=0.5,
+                                                   min_threshold_discard_all_sample=0.5,
                                                    remove_faulty=True,
                                                    drop_samples=True,
                                                    drop_positions=True,
