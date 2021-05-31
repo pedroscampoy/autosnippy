@@ -374,18 +374,21 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
 
 def remove_position_range(df):
 
-    INDELs = df[df['Position'].str.contains(r'\|[ATCG]{2,}', regex=True)]
+    # r'\|[ATCG]{2,}' For both ins and dels
+    INs = df[df['Position'].str.contains(
+        r'\|[ATCG]{3,}\|[0-9]{1,}', regex=True)]
 
     bed_df = pd.DataFrame(columns=['#CHROM', 'REF', 'start', 'ALT'])
     bed_df[['#CHROM', 'REF', 'start', 'ALT']
-           ] = INDELs['Position'].str.split('|', expand=True)
+           ] = INs['Position'].str.split('|', expand=True)
     bed_df['start'] = bed_df['start'].astype(int)
     # include only positions in +1 position
     bed_df['start'] = bed_df['start'] + 1
     bed_df['lenREF'] = bed_df['REF'].str.len()
-    bed_df['lenALT'] = bed_df['ALT'].str.len()
-    bed_df['length'] = bed_df[['lenREF', 'lenALT']].max(axis=1)
-    bed_df['end'] = bed_df['start'] + bed_df['length'] - 1
+    # Commented to avoid collision with insertions
+    # bed_df['lenALT'] = bed_df['ALT'].str.len()
+    # bed_df['length'] = bed_df[['lenREF', 'lenALT']].max(axis=1)
+    bed_df['end'] = bed_df['start'] + bed_df['lenREF'] - 1
 
     for _, row in df.iterrows():
         position_number = int(row.Position.split("|")[2])
