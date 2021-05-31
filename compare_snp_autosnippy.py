@@ -325,6 +325,8 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
                         df[sample].update(df[['REGION', 'POS', 'REF', 'ALT']].merge(
                             dfl, on=['REGION', 'POS', 'REF', 'ALT'], how='left')[sample])
 
+    deletion_positions = df[df['REF'].str.len() > 1].POS.tolist()
+
     # Include uncovered
     samples_coverage = df.columns.tolist()[4:]
     for root, _, files in os.walk(coverage_dir):
@@ -336,6 +338,7 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
                     samples_coverage.remove(sample)
                     logger.debug("Adding uncovered: " + sample)
                     dfc = extract_uncovered(filename)
+                    dfc = dfc[~dfc.POS.isin(deletion_positions)]
                     # df.update(df[['REGION', 'POS']].merge(dfc, on=['REGION', 'POS'], how='left'))
                     df[sample].update(df[['REGION', 'POS']].merge(
                         dfc, on=['REGION', 'POS'], how='left')[sample])

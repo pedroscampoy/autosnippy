@@ -420,8 +420,12 @@ def main():
     ##############################################################################################################################
     logger.info(GREEN + "Removing low quality samples in group " +
                 group_name + END_FORMATTING)
-    uncovered_samples = remove_low_quality(output, min_coverage=args.coverage20,
-                                           min_hq_snp=args.min_snp, type_remove='Uncovered')
+    uncovered_samples = remove_low_quality(
+        output, min_coverage=args.coverage20, min_hq_snp=args.min_snp, type_remove='Uncovered')
+
+    if len(uncovered_samples) > 1:
+        logger.info(GREEN + "Uncovered samples: " +
+                    (",").join(uncovered_samples) + END_FORMATTING)
 
     # RUN SNIPPY CORE
     ##############################################################################################################################
