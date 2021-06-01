@@ -202,13 +202,16 @@ def import_VCF_to_pandas(vcf_file):
         sys.exit(1)
 
 
-def annotate_vcfs(tsv_df, vcfs):
+def annotate_vcfs(tsv_df, vcfs, include_ref=False):
     df = pd.read_csv(tsv_df, sep="\t")
     for vcf in vcfs:
         logger.info("ANNOTATING VCF: {}".format(vcf))
         header = (".").join(vcf.split("/")[-1].split(".")[0:-1])
         dfvcf = import_VCF_to_pandas(vcf)
-        dfvcf = dfvcf[['POS', 'REF', 'ALT', 'INFO']]
+        if include_ref:
+            dfvcf = dfvcf[['POS', 'REF', 'ALT', 'INFO']]
+        else:
+            dfvcf = dfvcf[['POS', 'ALT', 'INFO']]
         dfvcf = dfvcf.rename(columns={'INFO': header})
         df = df.merge(dfvcf, how='left')
     return df
