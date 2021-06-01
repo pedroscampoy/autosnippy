@@ -543,10 +543,15 @@ def remove_low_quality(output_dir, min_coverage=30, min_hq_snp=8, type_remove='U
                     sample = re.search(r'^(.+?)[._]', name).group(1)
                     if sample in uncovered_samples:
                         destination_file = os.path.join(uncovered_dir, name)
+                        logger.debug("Should move fastq {} to {}".format(
+                            filename, destination_file))
                         if not os.path.exists(destination_file):
                             logger.debug("Moving FAULTY fasta {} TO {}".format(
                                 filename, destination_file))
                             shutil.move(filename, destination_file)
+                        else:
+                            logger.debug(
+                                "{} already exist".format(destination_file))
 
     # Move Variant Folder
 
@@ -561,6 +566,9 @@ def remove_low_quality(output_dir, min_coverage=30, min_hq_snp=8, type_remove='U
                         logger.debug("Moving FAULTY folder {} TO {}".format(
                             filename, destination_file))
                         shutil.move(filename, destination_file)
+                    else:
+                        logger.debug(
+                            "{} already exist".format(destination_file))
 
     return uncovered_samples
 

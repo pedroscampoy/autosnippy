@@ -325,7 +325,22 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
                         df[sample].update(df[['REGION', 'POS', 'REF', 'ALT']].merge(
                             dfl, on=['REGION', 'POS', 'REF', 'ALT'], how='left')[sample])
 
-    deletion_positions = df[df['REF'].str.len() > 1].POS.tolist()
+    indel_positions = df[(df['REF'].str.len() > 1) | (
+        df['ALT'].str.len() > 1)].POS.tolist()
+    indel_len = df[(df['REF'].str.len() > 1) | (
+        df['ALT'].str.len() > 1)].REF.tolist()
+    indel_len = [len(x) for x in indel_len]
+
+    indel_positions_final = []
+
+    for position, del_len in zip(indel_positions, indel_len):
+        indel_positions_final = indel_positions_final + \
+            [x for x in range(position - (5 + del_len),
+                              position + (5 + del_len))]
+
+    print(indel_positions)
+    print(indel_len)
+    print(indel_positions_final)
 
     # Include uncovered
     samples_coverage = df.columns.tolist()[4:]
@@ -338,7 +353,7 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
                     samples_coverage.remove(sample)
                     logger.debug("Adding uncovered: " + sample)
                     dfc = extract_uncovered(filename)
-                    dfc = dfc[~dfc.POS.isin(deletion_positions)]
+                    dfc = dfc[~dfc.POS.isin(indel_positions_final)]
                     # df.update(df[['REGION', 'POS']].merge(dfc, on=['REGION', 'POS'], how='left'))
                     df[sample].update(df[['REGION', 'POS']].merge(
                         dfc, on=['REGION', 'POS'], how='left')[sample])
@@ -363,6 +378,8 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
 
     df[['N', 'Samples']] = df.apply(
         extract_sample_count, axis=1, result_type='expand')
+
+    df = df[df.N > 0]
 
     df['Position'] = df.apply(lambda x: ('|').join(
         [x['REGION'], x['REF'], str(x['POS']), x['ALT']]), axis=1)
@@ -389,13 +406,13 @@ def remove_position_range(df):
     bed_df['start'] = bed_df['start'] + 1
     bed_df['lenREF'] = bed_df['REF'].str.len()
     # Commented to avoid collision with insertions
-    # bed_df['lenALT'] = bed_df['ALT'].str.len()
+    bed_df['lenALT'] = bed_df['ALT'].str.len()
     # bed_df['length'] = bed_df[['lenREF', 'lenALT']].max(axis=1)
     bed_df['end'] = bed_df['start'] + bed_df['lenREF'] - 1
 
     for _, row in df.iterrows():
         position_number = int(row.Position.split("|")[2])
-        if any(start <= position_number <= end for (start, end) in zip(bed_df.start.values.tolist(), bed_df.end.values.tolist())):
+        if any(start <= position_number <= end for (start, end) in zip(bed_df.start.values.tolist(), bed_df.end.values.tolist())) and not re.search('\|[ATCG]{2,}', row.Position):
             logger.debug(
                 'Position: {} removed found in INDEL'.format(row.Position))
             df = df[df.Position != row.Position]
