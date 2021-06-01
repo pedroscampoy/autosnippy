@@ -269,7 +269,6 @@ def extract_complex_list(variant_dir, samples=False):
 
 
 def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, min_alt_dp=12, only_snp=False, samples=False):
-    print("SAPMELSAMDS", samples)
     df = pd.DataFrame(columns=['REGION', 'POS', 'REF', 'ALT'])
     # Merge all raw
     for root, _, files in os.walk(variant_dir):
@@ -337,10 +336,6 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
         indel_positions_final = indel_positions_final + \
             [x for x in range(position - (5 + del_len),
                               position + (5 + del_len))]
-
-    print(indel_positions)
-    print(indel_len)
-    print(indel_positions_final)
 
     # Include uncovered
     samples_coverage = df.columns.tolist()[4:]
@@ -665,14 +660,15 @@ def revised_df(df, out_dir=False, complex_pos=False, min_freq_include=0.8, min_t
         logger.info('FAULTY POSITIONS:\n{}\n\nFAULTY SAMPLES:\n{}'.format(
             ("\n").join(faulty_positions), ("\n").join(faulty_samples)))
 
-    clustered_positions = df['POS'][df.window_10 > 1].tolist()
+    clustered_positions = df['POS'][df.window_10 >
+                                    windos_size_discard].tolist()
     if len(clustered_positions) == 0:
         clustered_positions = [0]
     logger.debug('CLUSTERED POSITIONS' + "\n" +
                  (',').join([str(x) for x in clustered_positions]))
 
     # Remove close mutations
-    df = df[df.window_10 <= 1]
+    df = df[df.POS.isin(clustered_positions)]
 
     # Remove complex variantsmin_freq_include
     df['valid'] = df.apply(lambda x: sum(

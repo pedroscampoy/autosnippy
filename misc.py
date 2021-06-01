@@ -534,24 +534,28 @@ def remove_low_quality(output_dir, min_coverage=30, min_hq_snp=8, type_remove='U
                         "Removing FAULTY file {}".format(filename))
                     os.remove(filename)
 
+    sample_list_F = []
+
+    r1, r2 = extract_read_list(output_dir)
+    for r1_file, r2_file in zip(r1, r2):
+        sample = extract_sample(r1_file, r2_file)
+        sample_list_F.append(sample)
+
     # MOVE Fastq
-    for root, _, files in os.walk(output_dir):
-        if root == output_dir:
-            for name in files:
-                if name.endswith('fastq.gz'):
-                    filename = os.path.join(root, name)
-                    sample = re.search(r'^(.+?)[._]', name).group(1)
-                    if sample in uncovered_samples:
-                        destination_file = os.path.join(uncovered_dir, name)
-                        logger.debug("Should move fastq {} to {}".format(
-                            filename, destination_file))
-                        if not os.path.exists(destination_file):
-                            logger.debug("Moving FAULTY fasta {} TO {}".format(
-                                filename, destination_file))
-                            shutil.move(filename, destination_file)
-                        else:
-                            logger.debug(
-                                "{} already exist".format(destination_file))
+    if len(uncovered_samples) > 0:
+        for uncovered_sample in uncovered_samples:
+            try:
+                uncovered_index = sample_list_F.index(uncovered_sample)
+                destination_file_r1 = os.path.join(
+                    uncovered_dir, r1[uncovered_index].split("/")[-1])
+                destination_file_r2 = os.path.join(
+                    uncovered_dir, r2[uncovered_index].split("/")[-1])
+                logger.debug("Moving FAULTY fastas {} AND {} TO {} AND {}".format(
+                    r1[uncovered_index], r2[uncovered_index], destination_file_r1, destination_file_r2))
+                shutil.move(r1[uncovered_index], destination_file_r1)
+                shutil.move(r2[uncovered_index], destination_file_r2)
+            except:
+                logger.info('ERROR: No uncovered detected')
 
     # Move Variant Folder
 
