@@ -51,6 +51,8 @@ def get_arguments():
                         type=str, default=False, help='Coverage folder')
     parser.add_argument('-b', '--bam_folder', required=False,
                         type=str, default=False, help='Bam folder')
+    parser.add_argument('-w', '--window', required=False,
+                        type=int, default=2, help='Number of snps in 10 to discard: default 2')
     parser.add_argument('-R', '--reference', required=False, type=str, default=False,
                         help='Reference fasta file used in original variant calling')
 
@@ -602,7 +604,7 @@ def matrix_to_cluster(pairwise_file, matrix_file, distance=0):
     final_cluster.to_csv(final_cluster_file, sep='\t', index=False)
 
 
-def revised_df(df, out_dir=False, complex_pos=False, min_freq_include=0.8, min_threshold_discard_uncov_sample=0.4, min_threshold_discard_uncov_pos=0.4, min_threshold_discard_htz_sample=0.4, min_threshold_discard_htz_pos=0.4, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True, windos_size_discard=2):
+def revised_df(df, out_dir=False, complex_pos=False, min_freq_include=0.8, min_threshold_discard_uncov_sample=0.4, min_threshold_discard_uncov_pos=0.4, min_threshold_discard_htz_sample=0.4, min_threshold_discard_htz_pos=0.4, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True, windows_size_discard=2):
     if remove_faulty == True:
 
         uncovered_positions = df.iloc[:, 3:].apply(lambda x:  sum(
@@ -629,7 +631,7 @@ def revised_df(df, out_dir=False, complex_pos=False, min_freq_include=0.8, min_t
         df = df.sort_values("POS")
         add_window_distance(df)
 
-        if out_dir != False:
+        if out_dir:
             out_dir = os.path.abspath(out_dir)
             report_samples_file = os.path.join(out_dir, 'report_samples.tsv')
             report_samples_windows = os.path.join(
@@ -652,23 +654,30 @@ def revised_df(df, out_dir=False, complex_pos=False, min_freq_include=0.8, min_t
 
             df.to_csv(report_samples_windows, sep="\t")
 
+        clustered_positions = df['POS'][df.window_10 >
+                                        windows_size_discard].tolist()
         if drop_positions == True:
             df = df[~df.Position.isin(faulty_positions)]
         if drop_samples == True:
             df = df.drop(faulty_samples, axis=1)
 
-        logger.info('FAULTY POSITIONS:\n{}\n\nFAULTY SAMPLES:\n{}'.format(
+        logger.debug('FAULTY POSITIONS:\n{}\n\nFAULTY SAMPLES:\n{}'.format(
             ("\n").join(faulty_positions), ("\n").join(faulty_samples)))
 
-    clustered_positions = df['POS'][df.window_10 >
-                                    windos_size_discard].tolist()
     if len(clustered_positions) == 0:
         clustered_positions = [0]
-    logger.debug('CLUSTERED POSITIONS' + "\n" +
+    logger.info('CLUSTERED POSITIONS' + "\n" +
+                (',').join([str(x) for x in clustered_positions]))
+    if complex_pos:
+        logger.debug('COMPLEX POSITIONS' + "\n" +
+                     (',').join([str(x) for x in complex_pos]))
+        clustered_positions = list(set(clustered_positions + complex_pos))
+
+    logger.debug('ALL CLOSE POSITIONS' + "\n" +
                  (',').join([str(x) for x in clustered_positions]))
 
-    # Remove close mutations
-    df = df[df.POS.isin(clustered_positions)]
+    # Remove close mutations and complex positions
+    df = df[~df.POS.isin(clustered_positions)]
 
     # Remove complex variantsmin_freq_include
     df['valid'] = df.apply(lambda x: sum(
@@ -1310,7 +1319,7 @@ if __name__ == '__main__':
 
         recalibrated_revised_INDEL_df = revised_df(compare_snp_matrix_INDEL_intermediate_df,
                                                    path_compare,
-                                                   complex_pos=complex_variants,
+                                                   complex_pos=False,
                                                    min_freq_include=0.8,
                                                    min_threshold_discard_uncov_sample=0.5,
                                                    min_threshold_discard_uncov_pos=0.5,
@@ -1321,7 +1330,7 @@ if __name__ == '__main__':
                                                    remove_faulty=True,
                                                    drop_samples=True,
                                                    drop_positions=True,
-                                                   windos_size_discard=2)
+                                                   windows_size_discard=args.window)
         recalibrated_revised_INDEL_df.to_csv(
             compare_snp_matrix_recal, sep="\t", index=False)
 

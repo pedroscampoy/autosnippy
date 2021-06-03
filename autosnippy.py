@@ -134,6 +134,8 @@ def main():
 
         compare_group.add_argument('-S', '--only_snp', required=False,
                                    action='store_true', help='Use INDELS while comparing')
+        compare_group.add_argument('-w', '--window', required=False,
+                                   type=int, default=2, help='Number of snps in 10 to discard: default 2')
         compare_group.add_argument('--core', required=False,
                                    action='store_true', help='Run snippy-core')
 
@@ -627,7 +629,7 @@ def main():
                                                remove_faulty=True,
                                                drop_samples=True,
                                                drop_positions=True,
-                                               windos_size_discard=2)
+                                               windos_size_discard=args.window)
     recalibrated_revised_INDEL_df.to_csv(
         compare_snp_matrix_recal, sep="\t", index=False)
 
