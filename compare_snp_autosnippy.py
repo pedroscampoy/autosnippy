@@ -666,8 +666,8 @@ def revised_df(df, out_dir=False, complex_pos=False, min_freq_include=0.8, min_t
 
     if len(clustered_positions) == 0:
         clustered_positions = [0]
-    logger.info('CLUSTERED POSITIONS' + "\n" +
-                (',').join([str(x) for x in clustered_positions]))
+    logger.debug('CLUSTERED POSITIONS' + "\n" +
+                 (',').join([str(x) for x in clustered_positions]))
     if complex_pos:
         logger.debug('COMPLEX POSITIONS' + "\n" +
                      (',').join([str(x) for x in complex_pos]))
@@ -679,7 +679,7 @@ def revised_df(df, out_dir=False, complex_pos=False, min_freq_include=0.8, min_t
     # Remove close mutations and complex positions
     df = df[~df.POS.isin(clustered_positions)]
 
-    # Remove complex variantsmin_freq_include
+    # Remove complex variants in_freq_include
     df['valid'] = df.apply(lambda x: sum(
         [i != '?' and i != '!' and float(i) >= min_freq_include for i in x[3:]]), axis=1)
     df = df[df.valid >= 1]
@@ -827,6 +827,8 @@ def recheck_variant_rawvcf_intermediate(row, positions, alt_snps, variant_folder
 
     # Open file and retrieve output
 
+    checked_positions = positions[:]
+
     with open(filename, 'r') as f:
         for line in f:
             if line.startswith('#CHROM'):
@@ -835,32 +837,34 @@ def recheck_variant_rawvcf_intermediate(row, positions, alt_snps, variant_folder
             elif not line.startswith('#'):
                 line_split = line.split("\t")
                 vcf_position = line_split[1]
+                params = line_split[-2].split(":")
+                value_params = line_split[-1].split(":")
+                depth_index = params.index('DP')
+
+                vcf_reference = line_split[0]
+                vcf_alt_base = line_split[4]
+                vcf_depth = int(value_params[depth_index])
+                # ref_depth_indef = params.index('RO')
+                alt_depth_index = params.index('AO')
+
+                try:
+                    vcf_alt_depth = int(value_params[alt_depth_index])
+                except:
+                    value_params = [
+                        int(x) for x in value_params[alt_depth_index].split(',')]
+                    vcf_alt_depth = max(value_params)
+                    vcf_alt_base = vcf_alt_base.split(',')[-1]
+
+                vcf_alt_freq = round(vcf_alt_depth/vcf_depth, 2)
                 if vcf_position in positions:
+                    if vcf_position in checked_positions:
+                        checked_positions.remove(vcf_position)
                     position_index = positions.index(vcf_position)
                     if str(row[position_index]) == '0':
                         # logger.info(
                         #    'recalibrating position: {} in sample: {}'.format(vcf_position, sample))
 
                         # vcf_ref_base = line_split[3]
-                        params = line_split[-2].split(":")
-                        value_params = line_split[-1].split(":")
-                        depth_index = params.index('DP')
-
-                        vcf_reference = line_split[0]
-                        vcf_alt_base = line_split[4]
-                        vcf_depth = int(value_params[depth_index])
-                        # ref_depth_indef = params.index('RO')
-                        alt_depth_index = params.index('AO')
-
-                        try:
-                            vcf_alt_depth = int(value_params[alt_depth_index])
-                        except:
-                            vcf_alt_depth = int(
-                                value_params[alt_depth_index].split(',')[-1])
-                            vcf_alt_base = vcf_alt_base.split(',')[-1]
-
-                        vcf_alt_freq = round(vcf_alt_depth/vcf_depth, 2)
-
                         position = positions[position_index]
                         alt_snp = alt_snps[position_index]
 
@@ -890,7 +894,29 @@ def recheck_variant_rawvcf_intermediate(row, positions, alt_snps, variant_folder
                                     sample, vcf_position, sample, alt_snp, vcf_alt_base, vcf_alt_freq, row[position_index], vcf_depth))
                                 # logger.debug('con1 depth: {}, con2 alt: {}, con3 altfr: {}'.format(
                                 #     vcf_depth <= min_cov_low_freq, alt_snp == vcf_alt_base, vcf_alt_freq <= 0.1))
+                elif 'complex' in line:
+                    vcf_position = int(vcf_position)
+                    positions_complex = [x for x in range(
+                        vcf_position - 5, vcf_position + 5)]
+                    positions_complex = [str(x) for x in positions_complex]
+                    intersection = set(
+                        positions_complex).intersection(set(checked_positions))
+                    intersection = list(intersection)
 
+                    if len(intersection) > 0:
+                        for i in intersection:
+                            if i in checked_positions:
+                                checked_positions.remove(i)
+                            position_index = positions.index(i)
+                            if str(row[position_index]) == '0':
+                                if vcf_depth <= min_cov_low_freq and vcf_depth > 0:
+                                    logger.debug('Position: {} LOWDEPTH PRECOMPLEX: {}, DP: {}'.format(
+                                        i, vcf_alt_freq, vcf_depth))
+                                    row[position_index] = '?'
+                                else:
+                                    logger.debug(
+                                        'INTERSECTION PRECOMPLEX: Position: {}, AF: {}'.format(i, vcf_alt_freq))
+                                    row[position_index] = vcf_alt_freq
     return row
 
 

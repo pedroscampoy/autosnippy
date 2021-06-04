@@ -629,7 +629,7 @@ def main():
                                                remove_faulty=True,
                                                drop_samples=True,
                                                drop_positions=True,
-                                               windos_size_discard=args.window)
+                                               windows_size_discard=args.window)
     recalibrated_revised_INDEL_df.to_csv(
         compare_snp_matrix_recal, sep="\t", index=False)
 
