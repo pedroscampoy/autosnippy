@@ -115,8 +115,7 @@ def zcat_concat_reads(args):
     return output_file
 
 
-"""
-def mash_screen(args, winner=True, r2=False, mash_database="/processing_Data/bioinformatics/references/mash/RefSeq88n.msh"):
+def mash_screen(r1_file, out_dir, r2_file=False, winner=True, threads=16, mash_database="/home/laura/DATABASES/Mash/bacteria_mash.msh"):
     # https://mash.readthedocs.io/en/latest/index.html
     # https://gembox.cbcb.umd.edu/mash/refseq.genomes.k21s1000.msh #MASH refseq database
     # mash screen -w -p 4 ../refseq.genomes.k21s1000.msh 4_R1.fastq.gz 4_R2.fastq.gz > 4.winner.screen.tab
@@ -127,27 +126,22 @@ def mash_screen(args, winner=True, r2=False, mash_database="/processing_Data/bio
             wget https://gembox.cbcb.umd.edu/mash/refseq.genomes.k21s1000.msh")
         sys.exit(1)
 
-    threads = args.threads
+    r1_file = os.path.abspath(r1_file)
 
-    r1 = os.path.abspath(args.r1_file)
-    r2 = os.path.abspath(args.r2_file)
+    sample = extract_sample(r1_file, r2_file)
 
-    sample = extract_sample(r1, r2)
-
-    species_output_dir = obtain_output_dir(args, "Species")
-    check_create_dir(species_output_dir)
+    check_create_dir(out_dir)
     species_output_name = sample + ".screen.tab"
-    species_output_file = os.path.join(species_output_dir, species_output_name)
+    species_output_file = os.path.join(out_dir, species_output_name)
 
-    cmd = ["mash", "screen", "-p", str(threads), mash_database, r1]
+    cmd = ["mash", "screen", "-p", str(threads), mash_database, r1_file]
 
     if winner == True:
         cmd.insert(2, "-w")
     # Use both r1 and r2 instead of just r1(faster)
-    if r2 == True:
-        cmd.append(r2)
-
-    # cmd.extend([mash_database, r1, r2])
+    if r2_file:
+        r2_file = os.path.abspath(r2_file)
+        cmd.append(r2_file)
 
     prog = cmd[0]
     param = cmd[1:]
@@ -170,7 +164,6 @@ def mash_screen(args, winner=True, r2=False, mash_database="/processing_Data/bio
     except OSError as e:
         sys.exit(RED + BOLD + "failed to execute program '%s': %s" % (prog,
                                                                       str(e)) + END_FORMATTING)
-"""
 
 
 def extract_species(row):

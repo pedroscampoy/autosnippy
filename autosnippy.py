@@ -23,7 +23,7 @@ from annotation import annotate_snpeff, user_annotation, rename_reference_snpeff
     user_annotation_aa, annotation_to_html
 from compare_snp_autosnippy import ddtb_compare, ddbb_create_intermediate, revised_df, recalibrate_ddbb_vcf_intermediate, \
     remove_position_range, extract_complex_list, identify_uncovered, extract_close_snps, remove_position_from_compare
-from species_determination import refseq_masher
+from species_determination import refseq_masher, mash_screen
 
 """
 =============================================================
@@ -125,7 +125,7 @@ def main():
         annot_group.add_argument('-R', '--remove_bed', type=str, default=False,
                                  required=False, help='BED file with positions to remove')
         annot_group.add_argument('--mash_database', type=str, required=False,
-                                 default=False, help='MASH ncbi annotation containing all species database')
+                                 default="/home/laura/DATABASES/Mash/bacteria_mash.msh", help='MASH ncbi annotation containing species database')
         annot_group.add_argument('--snpeff_database', type=str, required=False,
                                  default=False, help='snpEFF annotation database')
 
@@ -363,8 +363,8 @@ def main():
             else:
                 logger.info(
                     GREEN + "Determining species in " + sample + END_FORMATTING)
-                refseq_masher(r1_file, r2_file, output_species,
-                              threads=args.threads, max_results=50)
+                mash_screen(r1_file, out_species_dir, r2_file=r2_file, winner=True, threads=args.threads,
+                            mash_database=args.mash_database)
 
             ########################CREATE STATS AND QUALITY FILTERS########################################################################
             ################################################################################################################################
