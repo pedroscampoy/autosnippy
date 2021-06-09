@@ -355,7 +355,7 @@ def main():
             check_create_dir(out_species_dir)
 
             output_species = os.path.join(
-                out_species_dir, sample + ".species.tab")
+                out_species_dir, sample + ".screen.tab")
 
             if os.path.isfile(output_species):
                 logger.info(YELLOW + DIM + output_species +

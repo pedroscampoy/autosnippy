@@ -861,15 +861,12 @@ def recheck_variant_rawvcf_intermediate(row, positions, alt_snps, variant_folder
                         checked_positions.remove(vcf_position)
                     position_index = positions.index(vcf_position)
                     if str(row[position_index]) == '0':
-                        # logger.info(
-                        #    'recalibrating position: {} in sample: {}'.format(vcf_position, sample))
-
                         # vcf_ref_base = line_split[3]
                         position = positions[position_index]
                         alt_snp = alt_snps[position_index]
 
-                        logger.debug('REC:SAMPLE: {}\n POS: {},  ALT: {}, DP: {}, FREQ: {}\nORI==> POS: {}, ALT: {}, FREQ: {}'.format(
-                            sample, vcf_position, vcf_alt_base, vcf_depth, vcf_alt_freq, position, alt_snp, row[position_index]))
+                        # logger.debug('REC:SAMPLE: {}\n POS: {},  ALT: {}, DP: {}, FREQ: {}\nORI==> POS: {}, ALT: {}, FREQ: {}'.format(
+                        #     sample, vcf_position, vcf_alt_base, vcf_depth, vcf_alt_freq, position, alt_snp, row[position_index]))
 
                         if vcf_depth <= min_cov_low_freq and vcf_depth > 0:
                             logger.debug('Position: {} LOWDEPTH: {}, DP: {}'.format(
@@ -889,15 +886,12 @@ def recheck_variant_rawvcf_intermediate(row, positions, alt_snps, variant_folder
                                 logger.debug('Position COMPLEX: {} RECOVERED from 0 in {} to: {} in {} sample {}'.format(
                                     vcf_position, alt_snp, vcf_alt_freq, vcf_alt_base, sample))
                                 row[position_index] = vcf_alt_freq
-                            else:
-                                logger.debug('ELSE SAMPLE: {}, POS: {} SAMPLE: {}, ALT: {}, OGALT: {}, FREQ: {}, OGFREQ: {}, DP: {}'.format(
-                                    sample, vcf_position, sample, alt_snp, vcf_alt_base, vcf_alt_freq, row[position_index], vcf_depth))
-                                # logger.debug('con1 depth: {}, con2 alt: {}, con3 altfr: {}'.format(
-                                #     vcf_depth <= min_cov_low_freq, alt_snp == vcf_alt_base, vcf_alt_freq <= 0.1))
+                                # logger.debug('ELSE SAMPLE: {}, POS: {} SAMPLE: {}, ALT: {}, OGALT: {}, FREQ: {}, OGFREQ: {}, DP: {}'.format(
+                                #     sample, vcf_position, sample, alt_snp, vcf_alt_base, vcf_alt_freq, row[position_index], vcf_depth))
                 elif 'complex' in line:
                     vcf_position = int(vcf_position)
                     positions_complex = [x for x in range(
-                        vcf_position - 5, vcf_position + 5)]
+                        vcf_position - 7, vcf_position + 7)]
                     positions_complex = [str(x) for x in positions_complex]
                     intersection = set(
                         positions_complex).intersection(set(checked_positions))
@@ -910,12 +904,12 @@ def recheck_variant_rawvcf_intermediate(row, positions, alt_snps, variant_folder
                             position_index = positions.index(i)
                             if str(row[position_index]) == '0':
                                 if vcf_depth <= min_cov_low_freq and vcf_depth > 0:
-                                    logger.debug('Position: {} LOWDEPTH PRECOMPLEX: {}, DP: {}'.format(
-                                        i, vcf_alt_freq, vcf_depth))
+                                    logger.debug('Position: {} LOWDEPTH PRECOMPLEX: {}, DP: {}, sample {}'.format(
+                                        i, vcf_alt_freq, vcf_depth, sample))
                                     row[position_index] = '?'
                                 else:
                                     logger.debug(
-                                        'INTERSECTION PRECOMPLEX: Position: {}, AF: {}'.format(i, vcf_alt_freq))
+                                        'INTERSECTION PRECOMPLEX: Position: {}, AF: {}, sample: {}'.format(i, vcf_alt_freq, sample))
                                     row[position_index] = vcf_alt_freq
     return row
 
