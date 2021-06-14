@@ -53,6 +53,8 @@ def get_arguments():
                         type=str, default=False, help='Bam folder')
     parser.add_argument('-w', '--window', required=False,
                         type=int, default=2, help='Number of snps in 10 to discard: default 2')
+    parser.add_argument('-C', '--complex', required=False,
+                        action='store_true', help='Remove complex positions')
     parser.add_argument('-R', '--reference', required=False, type=str, default=False,
                         help='Reference fasta file used in original variant calling')
 
@@ -865,8 +867,15 @@ def recheck_variant_rawvcf_intermediate(row, positions, alt_snps, variant_folder
                         position = positions[position_index]
                         alt_snp = alt_snps[position_index]
 
-                        # logger.debug('REC:SAMPLE: {}\n POS: {},  ALT: {}, DP: {}, FREQ: {}\nORI==> POS: {}, ALT: {}, FREQ: {}'.format(
-                        #     sample, vcf_position, vcf_alt_base, vcf_depth, vcf_alt_freq, position, alt_snp, row[position_index]))
+                        logger.debug('REC==>ORI:SAMPLE: {}\nPOS: {},  ALT: {}, DP: {}, FREQ: {}\nPOS: {}, ALT: {}, DP: {}, FREQ: {}'.format(
+                            sample, vcf_position, vcf_alt_base, vcf_depth, vcf_alt_freq, position, alt_snp, vcf_alt_depth, row[position_index]))
+
+                        try:
+                            logger.debug('VALUE:\n{}, AO: {}'.format(
+                                (':').join(value_params), alt_depth_index))
+                        except:
+                            logger.debug('problem in VALUES POS: {}, sample: {}'.format(
+                                vcf_position, sample))
 
                         if vcf_depth <= min_cov_low_freq and vcf_depth > 0:
                             logger.debug('Position: {} LOWDEPTH: {}, DP: {}'.format(
@@ -891,12 +900,13 @@ def recheck_variant_rawvcf_intermediate(row, positions, alt_snps, variant_folder
                 elif 'complex' in line:
                     vcf_position = int(vcf_position)
                     positions_complex = [x for x in range(
-                        vcf_position - 7, vcf_position + 7)]
+                        vcf_position - 4, vcf_position + 4)]
                     positions_complex = [str(x) for x in positions_complex]
                     intersection = set(
                         positions_complex).intersection(set(checked_positions))
                     intersection = list(intersection)
-
+                    if vcf_position == 1500952:
+                        print('NOW')
                     if len(intersection) > 0:
                         for i in intersection:
                             if i in checked_positions:
@@ -1337,9 +1347,14 @@ if __name__ == '__main__':
 
         # Clean all faulty positions and samples => Final table
 
+        if args.complex:
+            remove_complex_positions = complex_variants
+        else:
+            remove_complex_positions = False
+
         recalibrated_revised_INDEL_df = revised_df(compare_snp_matrix_INDEL_intermediate_df,
                                                    path_compare,
-                                                   complex_pos=False,
+                                                   complex_pos=remove_complex_positions,
                                                    min_freq_include=0.8,
                                                    min_threshold_discard_uncov_sample=0.5,
                                                    min_threshold_discard_uncov_pos=0.5,
