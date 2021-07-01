@@ -1315,7 +1315,7 @@ if __name__ == '__main__':
         # Create intermediate
 
         recalibrated_snp_matrix_intermediate = ddbb_create_intermediate(
-            out_variant_dir, out_stats_coverage_dir, min_freq_discard=0.1, min_alt_dp=14, only_snp=False, samples=sample_list)
+            out_variant_dir, out_stats_coverage_dir, min_freq_discard=0.1, min_alt_dp=10, only_snp=False, samples=sample_list)
         recalibrated_snp_matrix_intermediate.to_csv(
             compare_snp_matrix_recal_intermediate, sep="\t", index=False)
 
