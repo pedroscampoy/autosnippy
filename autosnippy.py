@@ -138,6 +138,18 @@ def main():
                                    type=int, default=2, help='Number of snps in 10 to discard: default 2')
         compare_group.add_argument('--core', required=False,
                                    action='store_true', help='Run snippy-core')
+        compare_group.add_argument('--min_threshold_discard_uncov_sample', required=False,
+                                   type=float, default=0.5, help='min_threshold_discard_uncov_sample')
+        compare_group.add_argument('--min_threshold_discard_uncov_pos', required=False,
+                                   type=float, default=0.5, help='min_threshold_discard_uncov_pos')
+        compare_group.add_argument('--min_threshold_discard_htz_sample', required=False,
+                                   type=float, default=0.5, help='min_threshold_discard_htz_sample')
+        compare_group.add_argument('--min_threshold_discard_htz_pos', required=False,
+                                   type=float, default=0.5, help='min_threshold_discard_htz_pos')
+        compare_group.add_argument('--min_threshold_discard_all_pos', required=False,
+                                   type=float, default=0.5, help='min_threshold_discard_all_pos')
+        compare_group.add_argument('--min_threshold_discard_all_sample', required=False,
+                                   type=float, default=0.5, help='min_threshold_discard_all_sample')
 
         arguments = parser.parse_args()
 
@@ -620,12 +632,12 @@ def main():
                                                path_compare,
                                                complex_pos=complex_variants,
                                                min_freq_include=0.8,
-                                               min_threshold_discard_uncov_sample=0.5,
-                                               min_threshold_discard_uncov_pos=0.5,
-                                               min_threshold_discard_htz_sample=0.5,
-                                               min_threshold_discard_htz_pos=0.5,
-                                               min_threshold_discard_all_pos=0.5,
-                                               min_threshold_discard_all_sample=0.5,
+                                               min_threshold_discard_uncov_sample=args.min_threshold_discard_uncov_sample,
+                                               min_threshold_discard_uncov_pos=args.min_threshold_discard_uncov_pos,
+                                               min_threshold_discard_htz_sample=args.min_threshold_discard_htz_sample,
+                                               min_threshold_discard_htz_pos=args.min_threshold_discard_htz_pos,
+                                               min_threshold_discard_all_pos=args.min_threshold_discard_all_pos,
+                                               min_threshold_discard_all_sample=args.min_threshold_discard_all_sample,
                                                remove_faulty=True,
                                                drop_samples=True,
                                                drop_positions=True,
