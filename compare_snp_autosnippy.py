@@ -57,9 +57,20 @@ def get_arguments():
                         action='store_true', help='Remove complex positions')
     parser.add_argument('-R', '--reference', required=False, type=str, default=False,
                         help='Reference fasta file used in original variant calling')
-
     parser.add_argument('-o', '--output', type=str, required=True,
                         help='Name of all the output files, might include path')
+    parser.add_argument('--min_threshold_discard_uncov_sample', required=False,
+                        type=float, default=0.5, help='min_threshold_discard_uncov_sample')
+    parser.add_argument('--min_threshold_discard_uncov_pos', required=False,
+                        type=float, default=0.5, help='min_threshold_discard_uncov_pos')
+    parser.add_argument('--min_threshold_discard_htz_sample', required=False,
+                        type=float, default=0.5, help='min_threshold_discard_htz_sample')
+    parser.add_argument('--min_threshold_discard_htz_pos', required=False,
+                        type=float, default=0.5, help='min_threshold_discard_htz_pos')
+    parser.add_argument('--min_threshold_discard_all_pos', required=False,
+                        type=float, default=0.5, help='min_threshold_discard_all_pos')
+    parser.add_argument('--min_threshold_discard_all_sample', required=False,
+                        type=float, default=0.5, help='min_threshold_discard_all_sample')
 
     arguments = parser.parse_args()
 
@@ -1355,12 +1366,12 @@ if __name__ == '__main__':
                                                    path_compare,
                                                    complex_pos=remove_complex_positions,
                                                    min_freq_include=0.8,
-                                                   min_threshold_discard_uncov_sample=0.5,
-                                                   min_threshold_discard_uncov_pos=0.5,
-                                                   min_threshold_discard_htz_sample=0.5,
-                                                   min_threshold_discard_htz_pos=0.5,
-                                                   min_threshold_discard_all_pos=0.5,
-                                                   min_threshold_discard_all_sample=0.5,
+                                                   min_threshold_discard_uncov_sample=args.min_threshold_discard_uncov_sample,
+                                                   min_threshold_discard_uncov_pos=args.min_threshold_discard_uncov_pos,
+                                                   min_threshold_discard_htz_sample=args.min_threshold_discard_htz_sample,
+                                                   min_threshold_discard_htz_pos=args.min_threshold_discard_htz_pos,
+                                                   min_threshold_discard_all_pos=args.min_threshold_discard_all_pos,
+                                                   min_threshold_discard_all_sample=args.min_threshold_discard_all_sample,
                                                    remove_faulty=True,
                                                    drop_samples=True,
                                                    drop_positions=True,

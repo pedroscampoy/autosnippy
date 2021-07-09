@@ -642,19 +642,14 @@ def count_lines(input_file):
     return len(content_list)
 
 
-def check_reanalysis(output_dir):
+def check_reanalysis(output_dir, previous_samples_list):
     output_dir = os.path.abspath(output_dir)
     #group = output_dir.split("/")[-1]
 
-    bam_dir = os.path.join(output_dir, "Bam")
-    vcf_dir = os.path.join(output_dir, "VCF")
-    gvcf_dir = os.path.join(output_dir, "GVCF")
-    gvcfr_dir = os.path.join(output_dir, "GVCF_recal")
-    vcfr_dir = os.path.join(output_dir, "VCF_recal")
-    cov_dir = os.path.join(output_dir, "Coverage")
-    table_dir = os.path.join(output_dir, "Table")
+    variant_dir = os.path.join(output_dir, "Variants")
+    compare_dir = os.path.join(output_dir, "Compare")
 
-    previous_files = [bam_dir, vcf_dir, gvcf_dir, gvcfr_dir]
+    previous_files = [variant_dir, compare_dir]
 
     # check how many folders exist
     file_exist = sum([os.path.exists(x)
@@ -663,13 +658,9 @@ def check_reanalysis(output_dir):
     # Handle reanalysis: First time; reanalysis o reanalysis with aditional samples
     if file_exist > 0:  # Already analysed
 
-        samples_analyzed = os.listdir(bam_dir)
-        samples_analyzed = len(
-            [x for x in samples_analyzed if ".bai" not in x and "bqsr" in x])
+        samples_analyzed = os.listdir(variant_dir)
 
-        samples_fastq = os.listdir(output_dir)
-        samples_fastq = len(
-            [x for x in samples_fastq if x.endswith('fastq.gz')]) / 2
+        samples_fastq = previous_samples_list
 
         if samples_analyzed >= samples_fastq:
             logger.info(
