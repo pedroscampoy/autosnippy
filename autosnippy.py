@@ -125,11 +125,11 @@ def main():
     else:
         logger.info("samples will be filtered")
         sample_list_F = file_to_list(args.sample_list)
+
+    new_samples = check_reanalysis(args.output, sample_list_F)
+
     logger.info("\n%d samples will be analysed: %s" %
-                (len(sample_list_F), ",".join(sample_list_F)))
-
-    check_reanalysis(args.output, sample_list_F)
-
+                (len(new_samples), ",".join(new_samples)))
     #DECLARE FOLDERS CREATED IN PIPELINE ################
     #AND KEY FILES ######################################
     #####################################################
@@ -155,7 +155,7 @@ def main():
     out_annot_user_aa_dir = os.path.join(out_annot_dir, "user_aa")  # subfolder
 
     out_species_dir = os.path.join(output, "Species")
-
+    new_sample_number = 0
     for r1_file, r2_file in zip(r1, r2):
         # EXtract sample name
         sample = extract_sample(r1_file, r2_file)
@@ -166,12 +166,17 @@ def main():
 
             sample_number = str(sample_list_F.index(sample) + 1)
             sample_total = str(len(sample_list_F))
+            if sample in new_samples:
+                new_sample_number = str(int(new_sample_number) + 1)
+                new_sample_total = str(len(new_samples))
+                logger.info("\n" + WHITE_BG + "STARTING SAMPLE: " + sample +
+                            " (" + sample_number + "/" + sample_total + ")" + " (" + new_sample_number + "/" + new_sample_total + ")" + END_FORMATTING)
+            else:
+                logger.info("\n" + WHITE_BG + "STARTING SAMPLE: " + sample +
+                            " (" + sample_number + "/" + sample_total + ")" + END_FORMATTING)
 
             output_final_vcf = os.path.join(
                 sample_variant_dir, 'snps.all.ivar.tsv')
-
-            logger.info("\n" + WHITE_BG + "STARTING SAMPLE: " + sample +
-                        " (" + sample_number + "/" + sample_total + ")" + END_FORMATTING)
 
             if not os.path.isfile(output_final_vcf):
 

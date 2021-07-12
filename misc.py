@@ -642,8 +642,9 @@ def count_lines(input_file):
     return len(content_list)
 
 
-def check_reanalysis(output_dir, previous_samples_list):
+def check_reanalysis(output_dir, samples_to_analyze):
     output_dir = os.path.abspath(output_dir)
+    new_samples = []
     #group = output_dir.split("/")[-1]
 
     variant_dir = os.path.join(output_dir, "Variants")
@@ -658,37 +659,18 @@ def check_reanalysis(output_dir, previous_samples_list):
     # Handle reanalysis: First time; reanalysis o reanalysis with aditional samples
     if file_exist > 0:  # Already analysed
 
-        samples_analyzed = os.listdir(variant_dir)
+        previous_samples_list = os.listdir(variant_dir)
 
-        samples_fastq = previous_samples_list
+        if len(samples_to_analyze) == len(previous_samples_list):
 
-        if samples_analyzed >= samples_fastq:
             logger.info(
                 MAGENTA + "\nPREVIOUS ANALYSIS DETECTED, NO NEW SEQUENCES ADDED\n" + END_FORMATTING)
-
         else:
+            new_samples = set(samples_to_analyze) - set(previous_samples_list)
             logger.info(
-                MAGENTA + "\nPREVIOUS ANALYSIS DETECTED, NEW SEQUENCES ADDED\n" + END_FORMATTING)
-            for root, _, files in os.walk(output_dir):
-                if root == gvcf_dir or root == gvcfr_dir or root == vcfr_dir:
-                    for name in files:
-                        filename = os.path.join(root, name)
-                        if (("GVCF_recal" in filename) or ("/VCF_recal" in filename)) and "cohort" in filename and samples_analyzed < 100:
-                            os.remove(filename)
-                        elif "cohort" in filename and "/GVCF/" in filename:
-                            os.remove(filename)
-                elif root == vcf_dir or root == table_dir:
-                    for name in files:
-                        filename = os.path.join(root, name)
-                        if "cohort" in filename or filename.endswith(".bed") or filename.endswith(".tab"):
-                            os.remove(filename)
-                elif root == cov_dir:
-                    for name in files:
-                        filename = os.path.join(root, name)
-                        if "coverage.tab" in filename:
-                            os.remove(filename)
-                        if "poorly_covered.bed" in filename and samples_analyzed < 100:
-                            os.remove(filename)
+                MAGENTA + "\nPREVIOUS ANALYSIS DETECTED, " + str(len(new_samples)) + " NEW SEQUENCES ADDED\n" + END_FORMATTING)
+
+    return list(new_samples)
 
 
 def extrach_variants_summary(vcf_table, distance=15, quality=10):
