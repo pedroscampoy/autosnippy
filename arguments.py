@@ -52,9 +52,11 @@ def get_arguments():
         'Annotation', 'parameters for variant annotation')
 
     annot_group.add_argument('-B', '--annot_bed', type=str, default=[],
-                             required=False, action='append', help='bed file to annotate')
+                             required=False, action='append', help='BED file to annotate')
     annot_group.add_argument('-V', '--annot_vcf', type=str, default=[],
-                             required=False, action='append', help='vcf file to annotate')
+                             required=False, action='append', help='VCF file to annotate')
+    annot_group.add_argument('-F', '--annot_fasta', type=str, default=[],
+                             required=False, action='append', help='FASTA file to annotate')
     annot_group.add_argument('-A', '--annot_aa', type=str, default=[],
                              required=False, action='append', help='aminoacid file to annotate')
     annot_group.add_argument('-R', '--remove_bed', type=str, default=False,
