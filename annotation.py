@@ -16,6 +16,30 @@ logger = logging.getLogger()
 # Import files containing annotation info and convert them to dictionary
 #script_dir = os.path.dirname(os.path.realpath(__file__))
 
+def make_blast(query_fasta, database, sample, output_folder, db_type="nucl", query_type="nucl", evalue=0.0001, threads=8):
+
+    blast_command = 'blastn' if query_type == "nucl" else 'blastp'
+    database_name = database.split("/")[-1].split(".")[0]
+    output_database_tmp = os.path.join(
+        output_folder, database_name + ".blast.tmp")
+    output_blast = os.path.join(
+        output_folder, sample + "_" + database_name + ".blast")
+    blastdb_cmd = ['makeblastdb', '-in', database,
+                   '-out', output_database_tmp, '-dbtype', db_type]
+
+    logger.info((',').join(blastdb_cmd))
+
+    execute_subprocess(blastdb_cmd)
+
+    blast_cmd = [blast_command, "-query", query_fasta, "-db", output_database_tmp,
+                 "-out", output_blast, "-evalue", str(
+                     evalue), "-num_threads", str(threads),
+                 "-outfmt", "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen"]
+
+    logger.info((',').join(blast_cmd))
+
+    execute_subprocess(blast_cmd)
+
 
 def tsv_to_vcf(tsv_file):
     df = pd.read_csv(tsv_file, sep="\t")
