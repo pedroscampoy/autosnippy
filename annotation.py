@@ -23,7 +23,7 @@ def make_blast(query_fasta, database, sample, output_folder, db_type="nucl", que
     output_database_tmp = os.path.join(
         output_folder, database_name + ".blast.tmp")
     output_blast = os.path.join(
-        output_folder, sample + "_" + database_name + ".blast")
+        output_folder, sample + "." + database_name + ".blast")
     blastdb_cmd = ['makeblastdb', '-in', database,
                    '-out', output_database_tmp, '-dbtype', db_type]
 

@@ -129,6 +129,8 @@ def main():
     new_samples = check_reanalysis(args.output, sample_list_F)
 
     logger.info("\n%d samples will be analysed: %s" %
+                (len(sample_list_F), ",".join(sample_list_F)))
+    logger.info("\n%d NEW samples will be analysed: %s" %
                 (len(new_samples), ",".join(new_samples)))
     #DECLARE FOLDERS CREATED IN PIPELINE ################
     #AND KEY FILES ######################################
@@ -153,6 +155,7 @@ def main():
     out_annot_snpeff_dir = os.path.join(out_annot_dir, "snpeff")  # subfolder
     out_annot_user_dir = os.path.join(out_annot_dir, "user")  # subfolder
     out_annot_user_aa_dir = os.path.join(out_annot_dir, "user_aa")  # subfolder
+    out_annot_blast_dir = os.path.join(out_annot_dir, "blast")  # subfolder
 
     out_species_dir = os.path.join(output, "Species")
     new_sample_number = 0
@@ -479,23 +482,19 @@ def main():
         logger.info(
             YELLOW + BOLD + "Ommiting User FASTA Annotation, no FASTA files supplied" + END_FORMATTING)
     else:
-        check_create_dir(out_annot_user_aa_dir)
-        for root, _, files in os.walk(out_annot_snpeff_dir):
-            if root == out_annot_snpeff_dir:
-                for name in files:
-                    if name.endswith('.annot'):
-                        sample = name.split('.')[0]
-                        logger.info(
-                            'User aa annotation in sample {}'.format(sample))
-                        filename = os.path.join(root, name)
-                        out_annot_aa_file = os.path.join(
-                            out_annot_user_aa_dir, sample + ".tsv")
-                        if os.path.isfile(out_annot_aa_file):
-                            user_annotation_aa(
-                                out_annot_aa_file, out_annot_aa_file, aa_files=args.annot_aa)
-                        else:
-                            user_annotation_aa(
-                                filename, out_annot_aa_file, aa_files=args.annot_aa)
+        check_create_dir(out_annot_blast_dir)
+        for root, _, files in os.walk(out_variant_dir):
+            for name in files:
+                if name.endswith('.consensus.subs.fa'):
+                    filename = os.path.join(root, name)
+                    sample = root.split('/')[-1]
+                    logger.info(
+                        'User FASTA annotation in sample {}'.format(sample))
+                    # out_annot_aa_file = os.path.join(
+                    #    out_annot_user_aa_dir, sample + ".tsv")
+                    for db in args.annot_fasta:
+                        make_blast(filename, db, sample, out_annot_blast_dir,
+                                   db_type="nucl", query_type="nucl", evalue=0.0001, threads=8)
 
     # USER AA TO HTML
     if not args.annot_aa:
