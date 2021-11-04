@@ -844,7 +844,6 @@ def recheck_variant_rawvcf_intermediate(row, positions, alt_snps, variant_folder
 
     with open(filename, 'r') as f:
         for line in f:
-            # Parse line/variant in raw VCF
             if line.startswith('#CHROM'):
                 headers = line.split("\t")
                 vcf_sample = headers[-1].strip()
@@ -870,8 +869,6 @@ def recheck_variant_rawvcf_intermediate(row, positions, alt_snps, variant_folder
                     vcf_alt_base = vcf_alt_base.split(',')[-1]
 
                 vcf_alt_freq = round(vcf_alt_depth/vcf_depth, 2)
-
-                # Process variant information for recalibration
                 if vcf_position in positions:
                     if vcf_position in checked_positions:
                         checked_positions.remove(vcf_position)
