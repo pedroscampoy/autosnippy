@@ -22,7 +22,7 @@ from vcf_process import vcf_to_ivar_tsv, import_VCF4_core_to_compare
 from annotation import annotate_snpeff, user_annotation, rename_reference_snpeff, report_samples_html, \
     user_annotation_aa, annotation_to_html, make_blast
 from compare_snp_autosnippy import ddtb_compare, ddbb_create_intermediate, revised_df, recalibrate_ddbb_vcf_intermediate, \
-    remove_position_range, extract_complex_list, identify_uncovered, extract_close_snps, remove_position_from_compare
+    remove_position_range, extract_complex_list, identify_uncovered, extract_close_snps, remove_position_from_compare, remove_bed_positions
 from species_determination import mash_screen
 from arguments import get_arguments
 
@@ -539,6 +539,15 @@ def main():
 
     recalibrated_snp_matrix_intermediate = ddbb_create_intermediate(
         out_variant_dir, out_stats_coverage_dir, min_freq_discard=0.1, min_alt_dp=10, only_snp=False)
+    # recalibrated_snp_matrix_intermediate.to_csv(
+    #     compare_snp_matrix_recal_intermediate, sep="\t", index=False)
+
+    # Remove SNPs from BED file (PE/PPE)
+
+    if args.remove_bed:
+        recalibrated_snp_matrix_intermediate = remove_bed_positions(
+            recalibrated_snp_matrix_intermediate, args.remove_bed)
+
     recalibrated_snp_matrix_intermediate.to_csv(
         compare_snp_matrix_recal_intermediate, sep="\t", index=False)
 
