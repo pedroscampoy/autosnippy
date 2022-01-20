@@ -55,6 +55,8 @@ def get_arguments():
                         type=int, default=2, help='Number of snps in 10 to discard: default 2')
     parser.add_argument('-C', '--complex', required=False,
                         action='store_true', help='Remove complex positions')
+    parser.add_argument('-B', '--remove_bed', required=False, type=str,
+                        default=False, help='BED file with positions to remove')
     parser.add_argument('-R', '--reference', required=False, type=str, default=False,
                         help='Reference fasta file used in original variant calling')
     parser.add_argument('-o', '--output', type=str, required=True,
@@ -870,7 +872,6 @@ def recheck_variant_rawvcf_intermediate(row, positions, alt_snps, variant_folder
                     vcf_alt_base = vcf_alt_base.split(',')[-1]
 
                 vcf_alt_freq = round(vcf_alt_depth/vcf_depth, 2)
-
                 # Process variant information for recalibration
                 if vcf_position in positions:
                     if vcf_position in checked_positions:
@@ -1026,6 +1027,51 @@ def compare_snp_columns(sample1, sample2, df):
     hamming_similarity = 1 - jaccard_similarity  # disagreements between colums
     snp_distance = int(hamming_similarity * (len(df.index)+1))
     return snp_distance
+
+
+def bed_to_df(bed_file):
+    """
+    Import bed file separated by tabs into a pandas df
+    -Handle header line
+    -Handle with and without description (If there is no description adds true or false to annotated df)
+    """
+    header_lines = 0
+    # Handle likely header by checking colums 2 and 3 as numbers
+    with open(bed_file, 'r') as f:
+        next_line = f.readline().strip()
+        line_split = next_line.split(None)  # This split by any blank character
+        start = line_split[1]
+        end = line_split[2]
+        while not start.isdigit() and not end.isdigit():
+            header_lines = header_lines + 1
+            next_line = f.readline().strip()
+            # This split by any blank character
+            line_split = next_line.split(None)
+            start = line_split[1]
+            end = line_split[2]
+
+    if header_lines == 0:
+        # delim_whitespace=True
+        df = pd.read_csv(bed_file, sep="\t", header=None)
+    else:
+        df = pd.read_csv(bed_file, sep="\t", skiprows=header_lines,
+                         header=None)  # delim_whitespace=True
+
+    df = df.iloc[:, 0:4]
+    df.columns = ["#CHROM", "start", "end", "description"]
+
+    return df
+
+
+def remove_bed_positions(df, bed_file):
+    bed_df = bed_to_df(bed_file)
+    for _, row in df.iterrows():
+        position_number = int(row.Position.split("|")[2])
+        if any(start <= position_number <= end for (start, end) in zip(bed_df.start.values.tolist(), bed_df.end.values.tolist())):
+            logger.info('Position: {} removed found in {}'.format(
+                row.Position, bed_file))
+            df = df[df.Position != row.Position]
+    return df
 
 
 def snp_distance_pairwise(dataframe, output_file):
@@ -1330,6 +1376,15 @@ if __name__ == '__main__':
 
         recalibrated_snp_matrix_intermediate = ddbb_create_intermediate(
             out_variant_dir, out_stats_coverage_dir, min_freq_discard=0.1, min_alt_dp=10, only_snp=False, samples=sample_list)
+        # recalibrated_snp_matrix_intermediate.to_csv(
+        #     compare_snp_matrix_recal_intermediate, sep="\t", index=False)
+
+        # Remove SNPs from BED file (PE/PPE)
+
+        if args.remove_bed:
+            recalibrated_snp_matrix_intermediate = remove_bed_positions(
+                recalibrated_snp_matrix_intermediate, args.remove_bed)
+
         recalibrated_snp_matrix_intermediate.to_csv(
             compare_snp_matrix_recal_intermediate, sep="\t", index=False)
 
