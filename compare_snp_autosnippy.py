@@ -371,8 +371,8 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
                         dfc, on=['REGION', 'POS'], how='left')[sample])
                     # df.combine_first(df[['REGION', 'POS']].merge(dfc, how='left'))
     if len(samples_coverage) > 0:
-        logger.info("WARNING: " + (',').join(samples_coverage) +
-                    " coverage file not found")
+        logger.info(RED + "WARNING: " + (',').join(samples_coverage) +
+                    " coverage file not found" + END_FORMATTING + '\n')
     # Asign 0 to rest (Absent)
     df = df.fillna(0)
 
