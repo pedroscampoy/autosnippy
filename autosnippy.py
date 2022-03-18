@@ -5,6 +5,7 @@ import os
 import sys
 import re
 import logging
+import pandas as pd
 
 # Third party imports
 import argparse
@@ -299,6 +300,12 @@ def main():
                     GREEN + "Determining species in " + sample + END_FORMATTING)
                 mash_screen(r1_file, out_species_dir, r2_file=r2_file, winner=True, threads=args.threads,
                             mash_database=args.mash_database)
+
+                # Name the columns of the mash output and sort them in descending order by identity
+                output_sort_species = pd.read_csv(output_species, sep='\t', header=None, names=[
+                                                  'Identity', 'Share-hashes', 'Median-multiplicity', 'p-value', 'ID accession', 'Organism']).sort_values(by=['Identity'], ascending=False)
+                output_sort_species.to_csv(
+                    output_species, sep='\t', index=None)
 
             ########################CREATE STATS AND QUALITY FILTERS########################################################################
             ################################################################################################################################

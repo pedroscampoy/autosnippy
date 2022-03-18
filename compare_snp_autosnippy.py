@@ -371,8 +371,8 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
                         dfc, on=['REGION', 'POS'], how='left')[sample])
                     # df.combine_first(df[['REGION', 'POS']].merge(dfc, how='left'))
     if len(samples_coverage) > 0:
-        logger.info("WARNING: " + (',').join(samples_coverage) +
-                    " coverage file not found")
+        logger.info(RED + "WARNING: " + (',').join(samples_coverage) +
+                    " coverage file not found" + END_FORMATTING + '\n')
     # Asign 0 to rest (Absent)
     df = df.fillna(0)
 
@@ -619,7 +619,7 @@ def matrix_to_cluster(pairwise_file, matrix_file, distance=0):
     final_cluster.to_csv(final_cluster_file, sep='\t', index=False)
 
 
-def revised_df(df, out_dir=False, complex_pos=False, min_freq_include=0.8, min_threshold_discard_uncov_sample=0.4, min_threshold_discard_uncov_pos=0.4, min_threshold_discard_htz_sample=0.4, min_threshold_discard_htz_pos=0.4, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True, windows_size_discard=2):
+def revised_df(df, out_dir=False, complex_pos=False, min_freq_include=0.7, min_threshold_discard_uncov_sample=0.4, min_threshold_discard_uncov_pos=0.5, min_threshold_discard_htz_sample=0.4, min_threshold_discard_htz_pos=0.4, min_threshold_discard_all_pos=0.6, min_threshold_discard_all_sample=0.6, remove_faulty=True, drop_samples=True, drop_positions=True, windows_size_discard=2):
     if remove_faulty == True:
 
         uncovered_positions = df.iloc[:, 3:].apply(lambda x:  sum(
@@ -1423,7 +1423,7 @@ if __name__ == '__main__':
         recalibrated_revised_INDEL_df = revised_df(compare_snp_matrix_INDEL_intermediate_df,
                                                    path_compare,
                                                    complex_pos=remove_complex_positions,
-                                                   min_freq_include=0.8,
+                                                   min_freq_include=0.7,
                                                    min_threshold_discard_uncov_sample=args.min_threshold_discard_uncov_sample,
                                                    min_threshold_discard_uncov_pos=args.min_threshold_discard_uncov_pos,
                                                    min_threshold_discard_htz_sample=args.min_threshold_discard_htz_sample,
