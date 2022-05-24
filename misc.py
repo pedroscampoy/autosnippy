@@ -464,7 +464,7 @@ def edit_sample_list(file_list, sample_list):
                 fout.write(line + "\n")
 
 
-def remove_low_quality(output_dir, min_coverage=30, min_hq_snp=8, type_remove='Uncovered'):
+def remove_low_quality(output_dir, mean_cov=20, min_coverage=30, min_hq_snp=8, type_remove='Uncovered'):
     right_now = str(datetime.datetime.now())
     right_now_full = "_".join(right_now.split(" "))
     output_dir = os.path.abspath(output_dir)
@@ -494,8 +494,8 @@ def remove_low_quality(output_dir, min_coverage=30, min_hq_snp=8, type_remove='U
                         lambda x: f(x.HQ_SNP), axis=1)
 
                     stats_df['HQ_SNP'] = stats_df['HQ_SNP'].astype(float)
-                    uncovered_samples = stats_df['#SAMPLE'][(stats_df['UNMMAPED_PROP'] >= min_coverage) |
-                                                            (stats_df['HQ_SNP'] < min_hq_snp)].tolist()
+                    uncovered_samples = stats_df['#SAMPLE'][(stats_df['MEAN_COV'] <= mean_cov) | (
+                        stats_df['UNMMAPED_PROP'] >= min_coverage) | (stats_df['HQ_SNP'] < min_hq_snp)].tolist()
                     # create a df with only covered to replace the original
                     covered_df = stats_df[~stats_df['#SAMPLE'].isin(
                         uncovered_samples)]
