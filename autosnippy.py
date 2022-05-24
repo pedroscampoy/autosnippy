@@ -235,6 +235,10 @@ def main():
                 else:
                     logger.info(
                         GREEN + "Calling variants with snippy " + sample + END_FORMATTING)
+
+                    # There is a problem with the variant calling, freebayes in snippy is defined with a ploidy of 2, so it calls with 0/0, 0/1 and 1/1, filtering only the 1/1. This underestimates the call and can bring samples closer  phylogenetically when you really have more differences. The "envs/autosnippy/bin/snippy" file is modified:
+                    # my $bcf_filter = qq{FMT/GT="1/1" && QUAL>=$minqual && FMT/DP>=$mincov && (FMT/AO)/(FMT/DP)>=$minfrac}; > my $bcf_filter = qq{FMT/GT="1/1" && QUAL>=$minqual && FMT/DP>=$mincov && (FMT/AO)/(FMT/DP)>=$minfrac | FMT/GT="0/1" && QUAL>=$minqual && FMT/DP>=$mincov && (FMT/AO)/(FMT/DP)>=$minfrac};
+
                     run_snippy(r1_file, r2_file, reference, out_variant_dir, sample,
                                threads=args.threads, minqual=10, minfrac=0.1, mincov=1)
                     old_bam = os.path.join(sample_variant_dir, "snps.bam")
