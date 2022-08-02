@@ -557,7 +557,7 @@ def main():
 
     if args.remove_bed:
         recalibrated_snp_matrix_intermediate = remove_bed_positions(
-            recalibrated_snp_matrix_intermediate, args.remove_bed)
+            recalibrated_snp_matrix_intermediate, args.remove_bed, full_path_compare)
 
     recalibrated_snp_matrix_intermediate.to_csv(
         compare_snp_matrix_recal_intermediate, sep="\t", index=False)

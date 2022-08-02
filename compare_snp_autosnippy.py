@@ -1063,14 +1063,28 @@ def bed_to_df(bed_file):
     return df
 
 
-def remove_bed_positions(df, bed_file):
+def remove_bed_positions(df, bed_file, path_compare):
     bed_df = bed_to_df(bed_file)
+    filtered_position = path_compare + ".filter_position.tsv"
+
+    counter = 0
+
     for _, row in df.iterrows():
         position_number = int(row.Position.split("|")[2])
         if any(start <= position_number <= end for (start, end) in zip(bed_df.start.values.tolist(), bed_df.end.values.tolist())):
             logger.info('Position: {} removed found in {}'.format(
                 row.Position, bed_file))
+            if counter == 0:
+                df_filter = df[df.Position == row.Position]
+            else:
+                df_aux = df[df.Position == row.Position]
+                df_filter = df_filter.append(df_aux, ignore_index=True)
             df = df[df.Position != row.Position]
+            counter += 1
+
+    if counter:
+        df_filter.to_csv(filtered_position, sep="\t", index=False)
+
     return df
 
 
@@ -1383,7 +1397,7 @@ if __name__ == '__main__':
 
         if args.remove_bed:
             recalibrated_snp_matrix_intermediate = remove_bed_positions(
-                recalibrated_snp_matrix_intermediate, args.remove_bed)
+                recalibrated_snp_matrix_intermediate, args.remove_bed, full_path_compare)
 
         recalibrated_snp_matrix_intermediate.to_csv(
             compare_snp_matrix_recal_intermediate, sep="\t", index=False)
