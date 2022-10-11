@@ -14,17 +14,15 @@ import datetime
 
 
 # Local application imports
-from misc import extract_sample, check_create_dir, \
-    extract_read_list, file_to_list, obtain_group_cov_stats, clean_unwanted_files, \
-    check_reanalysis, remove_low_quality, obtain_overal_stats
+from misc import extract_sample, check_create_dir, extract_read_list, file_to_list, obtain_group_cov_stats, clean_unwanted_files, check_reanalysis, remove_low_quality, obtain_overal_stats
 from preprocessing import fastqc_quality
 from bam_variants import run_snippy, extract_indels, merge_vcf, create_bamstat, create_coverage, run_snippy_core
 from vcf_process import vcf_to_ivar_tsv, import_VCF4_core_to_compare
 from annotation import annotate_snpeff, user_annotation, rename_reference_snpeff, report_samples_html, \
-    user_annotation_aa, annotation_to_html, make_blast
+    user_annotation_aa, make_blast
 from compare_snp_autosnippy import ddtb_compare, ddbb_create_intermediate, revised_df, recalibrate_ddbb_vcf_intermediate, \
     remove_position_range, extract_complex_list, identify_uncovered, extract_close_snps, remove_position_from_compare, remove_bed_positions
-from species_determination import mash_screen
+from species_determination import mash_screen, kraken
 from arguments import get_arguments
 
 """
@@ -239,6 +237,7 @@ def main():
                     # There is a problem with the variant calling, freebayes in snippy is defined with a ploidy of 2, so it calls with 0/0, 0/1 and 1/1, filtering only the 1/1. This underestimates the call and can bring samples closer  phylogenetically when you really have more differences. The "envs/autosnippy/bin/snippy" file is modified:
                     # my $bcf_filter = qq{FMT/GT="1/1" && QUAL>=$minqual && FMT/DP>=$mincov && (FMT/AO)/(FMT/DP)>=$minfrac}; > my $bcf_filter = qq{FMT/GT="1/1" && QUAL>=$minqual && FMT/DP>=$mincov && (FMT/AO)/(FMT/DP)>=$minfrac | FMT/GT="0/1" && QUAL>=$minqual && FMT/DP>=$mincov && (FMT/AO)/(FMT/DP)>=$minfrac};
 
+                    prior = datetime.datetime.now()
                     run_snippy(r1_file, r2_file, reference, out_variant_dir, sample,
                                threads=args.threads, minqual=10, minfrac=0.1, mincov=1)
                     old_bam = os.path.join(sample_variant_dir, "snps.bam")
@@ -248,6 +247,8 @@ def main():
                         sample_variant_dir, sample + ".bam.bai")
                     os.rename(old_bam, new_bam)
                     os.rename(old_bai, new_bai)
+                    after = datetime.datetime.now()
+                    print(("Done with function in: %s" % (after - prior)))
 
                 #VARIANT FORMAT COMBINATION (REMOVE COMPLEX) ########
                 #####################################################
@@ -283,33 +284,51 @@ def main():
                 else:
                     logger.info(
                         GREEN + "Adapting variants format in sample " + sample + END_FORMATTING)
-                    prior = datetime.datetime.now()
                     vcf_to_ivar_tsv(out_variant_all_sample,
                                     out_variant_tsv_file)
-                    after = datetime.datetime.now()
-                    print(("Done with function in: %s" % (after - prior)))
 
             # SPECIES DETERMINATION
             ###################################################
             check_create_dir(out_species_dir)
 
-            output_species = os.path.join(
-                out_species_dir, sample + ".screen.tab")
+            # Species determination with kraken2 and its standard database and visualization with ImportTaxonomy.pl from kronatools kit
 
-            if os.path.isfile(output_species):
-                logger.info(YELLOW + DIM + output_species +
-                            " EXIST\nOmmiting Species determinatin in " + sample + END_FORMATTING)
+            sample_species_dir = os.path.join(out_species_dir, sample)
+            # print(sample_species_dir)
+            krona_html = os.path.join(sample_species_dir + ".html")
+            output_species = os.path.join(sample_species_dir + ".screen.tab")
+
+            if args.kraken2_db != False:
+                if os.path.isfile(krona_html):
+                    logger.info(
+                        YELLOW + krona_html + " EXIST\nOmmiting species determination with Kraken2 for " + sample + END_FORMATTING)
+                else:
+                    logger.info(
+                        GREEN + "Species determination with Kraken2 for sample " + sample + END_FORMATTING)
+                    kraken(r1_file, r2_file, sample_species_dir, args.kraken2_db,
+                           krona_html, threads=args.threads)
             else:
                 logger.info(
-                    GREEN + "Determining species in " + sample + END_FORMATTING)
-                mash_screen(r1_file, out_species_dir, r2_file=r2_file, winner=True, threads=args.threads,
-                            mash_database=args.mash_database)
+                    YELLOW + BOLD + "No Kraken database suplied, skipping specie assignation in group " + group_name + END_FORMATTING)
 
-                # Name the columns of the mash output and sort them in descending order by identity
-                output_sort_species = pd.read_csv(output_species, sep='\t', header=None, names=[
-                                                  'Identity', 'Share-hashes', 'Median-multiplicity', 'p-value', 'ID accession', 'Organism']).sort_values(by=['Identity'], ascending=False)
-                output_sort_species.to_csv(
-                    output_species, sep='\t', index=None)
+            # Species determination with mash and its bacterial database
+
+            if args.mash_db != False:
+                if os.path.isfile(output_species):
+                    logger.info(
+                        YELLOW + output_species + " EXIST\nOmmiting species determination with Mash screen for " + sample + END_FORMATTING)
+                else:
+                    logger.info(
+                        GREEN + "Species determination with Mash for sample " + sample + END_FORMATTING)
+
+                    mash_screen(r1_file, out_species_dir, r2_file=r2_file, winner=True,
+                                threads=args.threads, mash_database=args.mash_database)
+
+                    # Name the columns of the mash output and sort them in descending order by identity
+                    output_sort_species = pd.read_csv(output_species, sep='\t', header=None, names=[
+                                                      'Identity', 'Share-hashes', 'Median-multiplicity', 'p-value', 'ID accession', 'Organism']).sort_values(by=['Identity'], ascending=False)
+                    output_sort_species.to_csv(
+                        output_species, sep='\t', index=None)
 
             ########################CREATE STATS AND QUALITY FILTERS########################################################################
             ################################################################################################################################
@@ -508,25 +527,25 @@ def main():
                                    db_type="nucl", query_type="nucl", evalue=0.0001, threads=8)
 
     # USER AA TO HTML
-    if not args.annot_aa:
-        logger.info(
-            YELLOW + BOLD + "Ommiting User aa Annotation to HTML, no AA files supplied" + END_FORMATTING)
-    else:
-        annotated_samples = []
-        logger.info('Adapting annotation to html in {}'.format(group_name))
-        for root, _, files in os.walk(out_annot_user_aa_dir):
-            if root == out_annot_user_aa_dir:
-                for name in files:
-                    if name.endswith('.tsv'):
-                        sample = name.split('.')[0]
-                        annotated_samples.append(sample)
-                        filename = os.path.join(root, name)
-                        annotation_to_html(filename, sample)
-        annotated_samples = [str(x) for x in annotated_samples]
-        report_samples_html_all = report_samples_html.replace(
-            'ALLSAMPLES', ('","').join(annotated_samples))  # NEW
-        with open(os.path.join(out_annot_user_aa_dir, '00_all_samples.html'), 'w+') as f:
-            f.write(report_samples_html_all)
+    # if not args.annot_aa:
+    #     logger.info(
+    #         YELLOW + BOLD + "Ommiting User aa Annotation to HTML, no AA files supplied" + END_FORMATTING)
+    # else:
+    #     annotated_samples = []
+    #     logger.info('Adapting annotation to html in {}'.format(group_name))
+    #     for root, _, files in os.walk(out_annot_user_aa_dir):
+    #         if root == out_annot_user_aa_dir:
+    #             for name in files:
+    #                 if name.endswith('.tsv'):
+    #                     sample = name.split('.')[0]
+    #                     annotated_samples.append(sample)
+    #                     filename = os.path.join(root, name)
+    #                     annotation_to_html(filename, sample)
+    #     annotated_samples = [str(x) for x in annotated_samples]
+    #     report_samples_html_all = report_samples_html.replace(
+    #         'ALLSAMPLES', ('","').join(annotated_samples))  # NEW
+    #     with open(os.path.join(out_annot_user_aa_dir, '00_all_samples.html'), 'w+') as f:
+    #         f.write(report_samples_html_all)
 
     # SNP COMPARISON using tsv variant files
     ######################################################

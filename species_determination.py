@@ -243,6 +243,21 @@ def extract_species_from_screen(screen_file, identity_threshold=0.9):
     return main_species, species_report
 
 
+def kraken(r1_file, r2_file, report, kraken2_db, krona_html, threads=34):
+
+    cmd_kraken = "kraken2 --db {} --use-names --threads {} --report {} --gzip-compressed {} {}".format(
+        kraken2_db, str(threads), report, r1_file, r2_file)
+
+    # print(cmd_kraken)
+    execute_subprocess(cmd_kraken, isShell=True)
+
+    cmd_krona = "ktImportTaxonomy -m 3 -q 2 -t 5 {} -o {}".format(
+        report, krona_html)
+
+    # print(cmd_krona)
+    execute_subprocess(cmd_krona, isShell=True)
+
+
 if __name__ == '__main__':
     logger.info("#################### SPECIES #########################")
     args = get_arguments()

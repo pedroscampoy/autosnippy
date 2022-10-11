@@ -234,7 +234,7 @@ def file_to_list(file_name):
 def calculate_cov_stats(file_cov):
     sample = file_cov.split("/")[-1].split(".")[0]
     df = pd.read_csv(file_cov, sep="\t", names=["#CHROM", "POS", "COV"])
-    unmmaped_pos = len(df.POS[df.COV == 0].tolist())
+    unmapped_pos = len(df.POS[df.COV == 0].tolist())
     pos_0_10 = len(df.POS[(df.COV > 0) & (df.COV <= 10)].tolist())
     pos_10_20 = len(df.POS[(df.COV > 10) & (df.COV <= 20)].tolist())
     pos_high20 = len(df.POS[(df.COV > 20)].tolist())
@@ -243,7 +243,7 @@ def calculate_cov_stats(file_cov):
     pos_high500 = len(df.POS[(df.COV >= 500)].tolist())
     pos_high1000 = len(df.POS[(df.COV >= 1000)].tolist())
     total_pos = df.shape[0]
-    unmmaped_prop = "%.2f" % ((unmmaped_pos/total_pos)*100)
+    unmapped_prop = "%.2f" % ((unmapped_pos/total_pos)*100)
     prop_0_10 = "%.2f" % ((pos_0_10/total_pos)*100)
     prop_10_20 = "%.2f" % ((pos_10_20/total_pos)*100)
     prop_high20 = "%.2f" % ((pos_high20/total_pos)*100)
@@ -254,7 +254,7 @@ def calculate_cov_stats(file_cov):
 
     mean_cov = "%.2f" % (df.COV.mean())
 
-    return sample, mean_cov, unmmaped_prop, prop_0_10, prop_10_20, prop_high20, prop_high50, prop_high100, prop_high500, prop_high1000
+    return sample, mean_cov, unmapped_prop, prop_0_10, prop_10_20, prop_high20, prop_high50, prop_high100, prop_high500, prop_high1000
 
 
 def obtain_group_cov_stats(directory, group_name):
@@ -272,7 +272,7 @@ def obtain_group_cov_stats(directory, group_name):
         logger.debug("Skipped samples for coverage calculation:" +
                      (",").join(samples_to_skip))
 
-    columns = ["#SAMPLE", "MEAN_COV", "UNMMAPED_PROP", "COV1-10X",
+    columns = ["#SAMPLE", "MEAN_COV", "UNMAPPED_PROP", "COV1-10X",
                "COV10-20X", "COV>20X", "COV>50X", "COV>100X", "COV>500X", "COV>1000X"]
 
     files_list = []
@@ -304,7 +304,7 @@ def obtain_group_cov_stats_L(directory, group_name):
     output_file = os.path.join(directory_path, output_group_name)
 
     with open(output_file, "w+") as outfile:
-        outfile.write("#SAMPLE" + "\t" + "MEAN_COV" + "\t" + "UNMMAPED_PROP" + "\t" + "COV1-10X" + "\t" + "COV10-20X" +
+        outfile.write("#SAMPLE" + "\t" + "MEAN_COV" + "\t" + "UNMAPPED_PROP" + "\t" + "COV1-10X" + "\t" + "COV10-20X" +
                       "\t" + "COV>20X" + "\t" + "COV>50X" + "\t" + "COV>100X" + "\t" + "COV>500X" + "\t" + "COV>1000X" + "\n")
         for root, _, files in os.walk(directory_path):
             for name in files:
@@ -423,6 +423,9 @@ def obtain_overal_stats(output_dir, group):
     stat_folder = os.path.join(output_dir, 'Stats')
     overal_stat_file = os.path.join(stat_folder, group + ".overal.stats.tab")
 
+    columns = ['#SAMPLE', 'MEAN_COV', 'UNMAPPED_PROP', 'COV1-10X', 'COV10-20X', 'COV>20X', 'COV>50X', 'COV>100X',
+               'COV>500X', 'COV>1000X']
+
     if os.path.exists(overal_stat_file):
         previous_stat = True
         df_stat = pd.read_csv(overal_stat_file, sep="\t")
@@ -441,13 +444,17 @@ def obtain_overal_stats(output_dir, group):
                         output_dir, x['#SAMPLE']), axis=1, result_type="expand")
                     df[['mapped_reads', 'perc_mapped', 'paired_mapped', 'perc_paired']] = df.parallel_apply(
                         lambda x: extract_mapped_reads(output_dir, x['#SAMPLE']), axis=1, result_type="expand")
-                    # df[['N_groups', 'N_individual', 'N_leading', 'N_tailing', 'N_sum_len', 'N_total_perc', 'N_mean_len']] = df.parallel_apply(
-                    # lambda x: extract_n_consensus(output_dir, x['#SAMPLE']), axis=1, result_type="expand")
+                    df[['N_groups', 'N_individual', 'N_leading', 'N_tailing', 'N_sum_len', 'N_total_perc', 'N_mean_len']] = df.parallel_apply(
+                        lambda x: extract_n_consensus(output_dir, x['#SAMPLE']), axis=1, result_type="expand")
 
     if previous_stat:
         df = pd.concat([df_stat, df], ignore_index=True, sort=True)
+        df = df[columns + [col for col in df.columns if col != "#SAMPLE" and col != "MEAN_COV" and col != "UNMAPPED_PROP" and col != "COV1-10X" and col != "COV10-20X" and col != "COV>20X" and col != "COV>50X" and col !=
+                           "COV>100X" and col != "COV>500X" and col != "COV>1000X"]]
         df.to_csv(overal_stat_file, sep="\t", index=False)
     else:
+        df = df[columns + [col for col in df.columns if col != "#SAMPLE" and col != "MEAN_COV" and col != "UNMAPPED_PROP" and col != "COV1-10X" and col != "COV10-20X" and col != "COV>20X" and col != "COV>50X" and col !=
+                           "COV>100X" and col != "COV>500X" and col != "COV>1000X"]]
         df.to_csv(overal_stat_file, sep="\t", index=False)
 
 
@@ -494,8 +501,9 @@ def remove_low_quality(output_dir, mean_cov=20, min_coverage=30, min_hq_snp=8, t
                         lambda x: f(x.HQ_SNP), axis=1)
 
                     stats_df['HQ_SNP'] = stats_df['HQ_SNP'].astype(float)
-                    uncovered_samples = stats_df['#SAMPLE'][(stats_df['MEAN_COV'] <= mean_cov) | (
-                        stats_df['UNMMAPED_PROP'] >= min_coverage) | (stats_df['HQ_SNP'] < min_hq_snp)].tolist()
+                    uncovered_samples = stats_df["#SAMPLE"][(stats_df['MEAN_COV'] <= mean_cov) | (stats_df["UNMAPPED_PROP"] >= min_coverage) | (
+                        stats_df["HQ_SNP"] < min_hq_snp)].tolist()
+
                     # create a df with only covered to replace the original
                     covered_df = stats_df[~stats_df['#SAMPLE'].isin(
                         uncovered_samples)]
