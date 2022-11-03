@@ -322,7 +322,7 @@ def main():
                         GREEN + "Species determination with Mash for sample " + sample + END_FORMATTING)
 
                     mash_screen(r1_file, out_species_dir, r2_file=r2_file, winner=True,
-                                threads=args.threads, mash_database=args.mash_database)
+                                threads=args.threads, mash_database=args.mash_db)
 
                     # Name the columns of the mash output and sort them in descending order by identity
                     output_sort_species = pd.read_csv(output_species, sep='\t', header=None, names=[
