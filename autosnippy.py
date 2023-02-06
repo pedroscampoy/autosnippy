@@ -329,6 +329,9 @@ def main():
                                                       'Identity', 'Share-hashes', 'Median-multiplicity', 'p-value', 'ID accession', 'Organism']).sort_values(by=['Identity'], ascending=False)
                     output_sort_species.to_csv(
                         output_species, sep='\t', index=None)
+            else:
+                logger.info(
+                    YELLOW + BOLD + "No Mash database suplied, skipping specie assignation in group " + group_name + END_FORMATTING)
 
             ########################CREATE STATS AND QUALITY FILTERS########################################################################
             ################################################################################################################################
@@ -387,7 +390,7 @@ def main():
     logger.info(GREEN + "Removing low quality samples in group " +
                 group_name + END_FORMATTING)
     uncovered_samples = remove_low_quality(
-        output, mean_cov=20, min_coverage=args.coverage20, min_hq_snp=args.min_snp, type_remove='Uncovered')
+        output, cov20=args.coverage20, unmapped_per=args.unmapped, min_hq_snp=args.min_snp, type_remove='Uncovered')
 
     if len(uncovered_samples) > 1:
         logger.info(GREEN + "Uncovered samples: " +

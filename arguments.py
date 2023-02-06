@@ -27,8 +27,12 @@ def get_arguments():
     quality_group = parser.add_argument_group(
         'Quality parameters', 'parameters for diferent triming conditions')
 
-    quality_group.add_argument('-c', '--coverage20', type=int, default=50, required=False,
-                               help='Minimum percentage of coverage at 20x to clasify as uncovered (Default 50)')
+    quality_group.add_argument('-c', '--coverage20', type=int, default=70, required=False,
+                               help='Minimum percentage of coverage at 20x to clasify as uncovered (Default 70)')
+
+    quality_group.add_argument('-u', '--unmapped', type=int, default=25, required=False,
+                               help='Minimum percentage of unmapped reads to classify as uncovered Default: 25')
+
     quality_group.add_argument('-n', '--min_snp', type=int, required=False,
                                default=30, help='SNP number to pass quality threshold')
 

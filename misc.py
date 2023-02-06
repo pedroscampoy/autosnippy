@@ -270,7 +270,7 @@ def obtain_group_cov_stats(directory, group_name):
         df_stat = pd.read_csv(output_file, sep="\t")
         samples_to_skip = df_stat["#SAMPLE"].tolist()
         logger.debug("Skipped samples for coverage calculation:" +
-                     (",").join(samples_to_skip))
+                     (",").join(str(samples_to_skip)))
 
     columns = ["#SAMPLE", "MEAN_COV", "UNMAPPED_PROP", "COV1-10X",
                "COV10-20X", "COV>20X", "COV>50X", "COV>100X", "COV>500X", "COV>1000X"]
@@ -431,7 +431,7 @@ def obtain_overal_stats(output_dir, group):
         df_stat = pd.read_csv(overal_stat_file, sep="\t")
         samples_to_skip = df_stat["#SAMPLE"].tolist()
         logger.debug("Skipped samples for coverage calculation:" +
-                     (",").join(samples_to_skip))
+                     (",").join(str(samples_to_skip)))
 
     for root, _, files in os.walk(stat_folder):
         for name in files:
@@ -471,7 +471,7 @@ def edit_sample_list(file_list, sample_list):
                 fout.write(line + "\n")
 
 
-def remove_low_quality(output_dir, mean_cov=20, min_coverage=30, min_hq_snp=8, type_remove='Uncovered'):
+def remove_low_quality(output_dir, cov20=70, unmapped_per=25, min_hq_snp=8, type_remove='Uncovered'):
     right_now = str(datetime.datetime.now())
     right_now_full = "_".join(right_now.split(" "))
     output_dir = os.path.abspath(output_dir)
@@ -501,7 +501,7 @@ def remove_low_quality(output_dir, mean_cov=20, min_coverage=30, min_hq_snp=8, t
                         lambda x: f(x.HQ_SNP), axis=1)
 
                     stats_df['HQ_SNP'] = stats_df['HQ_SNP'].astype(float)
-                    uncovered_samples = stats_df["#SAMPLE"][(stats_df['MEAN_COV'] <= mean_cov) | (stats_df["UNMAPPED_PROP"] >= min_coverage) | (
+                    uncovered_samples = stats_df["#SAMPLE"][(stats_df['COV>20X'] <= cov20) | (stats_df["UNMAPPED_PROP"] >= unmapped_per) | (
                         stats_df["HQ_SNP"] < min_hq_snp)].tolist()
 
                     # create a df with only covered to replace the original
