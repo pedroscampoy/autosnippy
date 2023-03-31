@@ -205,7 +205,7 @@ def blank_database():
 # COMPARE SNP 2.0
 
 
-def import_tsv_variants(tsv_file, sample, min_total_depth=4, min_alt_dp=4, only_snp=True):
+def import_tsv_variants(tsv_file, sample, min_total_depth=5, min_alt_dp=5, only_snp=True):
     # base_file = os.path.basename(tsv_file)
     input_file = os.path.abspath(tsv_file)
     # sample = base_file.split(".")[0]
@@ -227,7 +227,7 @@ def import_tsv_variants(tsv_file, sample, min_total_depth=4, min_alt_dp=4, only_
         return df
 
 
-def extract_lowfreq(tsv_file, sample, min_total_depth=4, min_alt_dp=4, min_freq_include=0.7, only_snp=True):
+def extract_lowfreq(tsv_file, sample, min_total_depth=5, min_alt_dp=5, min_freq_include=0.7, only_snp=True):
     # base_file = os.path.basename(tsv_file)
     input_file = os.path.abspath(tsv_file)
     # sample = base_file.split(".")[0]
@@ -285,7 +285,7 @@ def extract_complex_list(variant_dir, samples=False):
     return sorted(set(all_complex))
 
 
-def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, min_alt_dp=14, only_snp=False, samples=False):
+def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, min_alt_dp=12, only_snp=False, samples=False):
     df = pd.DataFrame(columns=['REGION', 'POS', 'REF', 'ALT'])
     # Merge all raw
     for root, _, files in os.walk(variant_dir):
@@ -296,14 +296,14 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
                     logger.debug("Adding: " + sample)
                     filename = os.path.join(root, name)
                     dfv = import_tsv_variants(
-                        filename, sample, min_total_depth=4, min_alt_dp=4, only_snp=only_snp)
+                        filename, sample, min_total_depth=5, min_alt_dp=5, only_snp=only_snp)
                     df = df.merge(dfv, how='outer')
                 else:
                     if sample in samples:
                         logger.debug("Adding: " + sample)
                         filename = os.path.join(root, name)
                         dfv = import_tsv_variants(
-                            filename, sample, min_total_depth=4, min_alt_dp=4, only_snp=only_snp)
+                            filename, sample, min_total_depth=5, min_alt_dp=5, only_snp=only_snp)
                         if dfv.shape[0] > 0:
                             df = df.merge(dfv, how='outer')
                         else:
@@ -330,14 +330,14 @@ def ddbb_create_intermediate(variant_dir, coverage_dir, min_freq_discard=0.1, mi
                 if samples == False:
                     logger.debug("Adding lowfreqs: " + sample)
                     dfl = extract_lowfreq(
-                        filename, sample, min_total_depth=4, min_alt_dp=min_alt_dp, only_snp=only_snp)
+                        filename, sample, min_total_depth=5, min_alt_dp=min_alt_dp, only_snp=only_snp)
                     df[sample].update(df[['REGION', 'POS', 'REF', 'ALT']].merge(
                         dfl, on=['REGION', 'POS', 'REF', 'ALT'], how='left')[sample])
                 else:
                     if sample in samples:
                         logger.debug("Adding lowfreqs: " + sample)
                         dfl = extract_lowfreq(
-                            filename, sample, min_total_depth=4, min_alt_dp=min_alt_dp, only_snp=only_snp)
+                            filename, sample, min_total_depth=5, min_alt_dp=min_alt_dp, only_snp=only_snp)
                         df[sample].update(df[['REGION', 'POS', 'REF', 'ALT']].merge(
                             dfl, on=['REGION', 'POS', 'REF', 'ALT'], how='left')[sample])
 
@@ -1389,7 +1389,7 @@ if __name__ == '__main__':
         # Create intermediate
 
         recalibrated_snp_matrix_intermediate = ddbb_create_intermediate(
-            out_variant_dir, out_stats_coverage_dir, min_freq_discard=0.1, min_alt_dp=10, only_snp=False, samples=sample_list)
+            out_variant_dir, out_stats_coverage_dir, min_freq_discard=0.1, min_alt_dp=8, only_snp=False, samples=sample_list)
         # recalibrated_snp_matrix_intermediate.to_csv(
         #     compare_snp_matrix_recal_intermediate, sep="\t", index=False)
 
@@ -1406,7 +1406,7 @@ if __name__ == '__main__':
 
         prior_recal = datetime.datetime.now()
         recalibrated_snp_matrix_mpileup = recalibrate_ddbb_vcf_intermediate(
-            compare_snp_matrix_recal_intermediate, out_variant_dir, min_cov_low_freq=10)
+            compare_snp_matrix_recal_intermediate, out_variant_dir, min_cov_low_freq=12)
         recalibrated_snp_matrix_mpileup.to_csv(
             compare_snp_matrix_recal_mpileup, sep="\t", index=False)
 

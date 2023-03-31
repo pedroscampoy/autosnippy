@@ -31,7 +31,7 @@ def get_arguments():
                                help='Minimum percentage of coverage at 20x to clasify as uncovered (Default 70)')
 
     quality_group.add_argument('-u', '--unmapped', type=int, default=25, required=False,
-                               help='Minimum percentage of unmapped reads to classify as uncovered Default: 25')
+                               help='Maximum percentage of unmapped reads to classify as uncovered Default: 25')
 
     quality_group.add_argument('-n', '--min_snp', type=int, required=False,
                                default=30, help='SNP number to pass quality threshold')

@@ -571,7 +571,7 @@ def main():
     # Create intermediate
 
     recalibrated_snp_matrix_intermediate = ddbb_create_intermediate(
-        out_variant_dir, out_stats_coverage_dir, min_freq_discard=0.1, min_alt_dp=10, only_snp=False)
+        out_variant_dir, out_stats_coverage_dir, min_freq_discard=0.1, min_alt_dp=8, only_snp=False)
     # recalibrated_snp_matrix_intermediate.to_csv(
     #     compare_snp_matrix_recal_intermediate, sep="\t", index=False)
 
@@ -588,7 +588,7 @@ def main():
 
     prior_recal = datetime.datetime.now()
     recalibrated_snp_matrix_mpileup = recalibrate_ddbb_vcf_intermediate(
-        compare_snp_matrix_recal_intermediate, out_variant_dir, min_cov_low_freq=10)
+        compare_snp_matrix_recal_intermediate, out_variant_dir, min_cov_low_freq=12)
     recalibrated_snp_matrix_mpileup.to_csv(
         compare_snp_matrix_recal_mpileup, sep="\t", index=False)
 
