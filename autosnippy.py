@@ -21,7 +21,7 @@ from vcf_process import vcf_to_ivar_tsv, import_VCF4_core_to_compare
 from annotation import annotate_snpeff, user_annotation, rename_reference_snpeff, report_samples_html, \
     user_annotation_aa, make_blast
 from compare_snp_autosnippy import ddtb_compare, ddbb_create_intermediate, revised_df, recalibrate_ddbb_vcf_intermediate, \
-    remove_position_range, extract_complex_list, identify_uncovered, extract_close_snps, remove_position_from_compare, remove_bed_positions
+    remove_position_range, extract_complex_list, identify_uncovered, extract_close_snps, remove_position_from_compare, remove_bed_positions, extract_only_snps
 from species_determination import mash_screen, kraken
 from arguments import get_arguments
 
@@ -567,6 +567,7 @@ def main():
         ".revised_intermediate_vcf.tsv"
     compare_snp_matrix_INDEL_intermediate = full_path_compare + \
         ".revised_INDEL_intermediate.tsv"
+    compare_only_snps = full_path_compare + "_ONLY_SNPs.revised.tsv"
 
     # Create intermediate
 
@@ -627,9 +628,17 @@ def main():
     recalibrated_revised_INDEL_df.to_csv(
         compare_snp_matrix_recal, sep="\t", index=False)
 
+    if args.only_snp:
+        compare_only_snps_df = extract_only_snps(
+            compare_snp_matrix_recal)
+        compare_only_snps_df.to_csv(compare_only_snps, sep="\t", index=False)
+
     # Matrix to pairwise and mwk
 
     ddtb_compare(compare_snp_matrix_recal, distance=5)
+
+    if args.only_snp:
+        ddtb_compare(compare_only_snps, distance=5)
 
     logger.info("\n\n" + MAGENTA + BOLD + "COMPARING FINISHED IN GROUP: " +
                 group_name + END_FORMATTING + "\n")

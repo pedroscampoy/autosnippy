@@ -362,10 +362,19 @@ def extract_mapped_reads(output_dir, sample):
             for line in f:
                 if 'mapped' in line and '%' in line:
                     reads_mapped = line.split(" ")[0]
-                    mappep_percentage = line.split("(")[-1].split("%")[0]
+                    # mappep_percentage = line.split("(")[-1].split("%")[0]
+                    try:
+                        mappep_percentage = line.split("(")[-1].split("%")[0]
+                        mappep_percentage = float(mappep_percentage)
+                    except ValueError:  # To avoid (NA: NA)
+                        mappep_percentage = 0
                 elif 'properly paired' in line:
                     properly_paired = line.split(" ")[0]
-                    paired_percentage = line.split("(")[-1].split("%")[0]
+                    try:
+                        paired_percentage = line.split("(")[-1].split("%")[0]
+                        paired_percentage = float(paired_percentage)
+                    except ValueError:  # To avoid (NA: NA)
+                        paired_percentage = 0
 
         # logger.debug((",").join(
         #     [reads_mapped, mappep_percentage, properly_paired, paired_percentage]))

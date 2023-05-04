@@ -73,6 +73,8 @@ def get_arguments():
                         type=float, default=0.5, help='min_threshold_discard_all_pos')
     parser.add_argument('--min_threshold_discard_all_sample', required=False,
                         type=float, default=0.5, help='min_threshold_discard_all_sample')
+    parser.add_argument('-S', '--only_snp', required=False,
+                        action='store_true', help='Create the results only with SNPs, removing INDELs')
 
     arguments = parser.parse_args()
 
@@ -631,8 +633,10 @@ def revised_df(df, out_dir=False, complex_pos=False, min_freq_include=0.8, min_t
         faulty_positions = report_position['Position'][(report_position.uncov_fract >= min_threshold_discard_uncov_pos) | (
             report_position.htz_frac >= min_threshold_discard_htz_pos) | (report_position.faulty_frac >= min_threshold_discard_all_pos)].tolist()
 
+        # uncovered_samples = df.iloc[:, 3:].apply(lambda x: sum(
+        #     [i in ['!'] for i in x.values])/sum([(i not in [0, '0']) for i in x.values]), axis=0)
         uncovered_samples = df.iloc[:, 3:].apply(lambda x: sum(
-            [i in ['!'] for i in x.values])/sum([(i not in [0, '0']) for i in x.values]), axis=0)
+            [i in ['!'] for i in x.values])/sum([(i not in [0, '0']) for i in x.values]) if sum([(i not in [0, '0']) for i in x.values]) != 0 else 0, axis=0)  # To avoid 'ZeroDivisionError: division by zero'
         heterozygous_samples = df.iloc[:, 3:].apply(lambda x: sum([(i not in ['!', '?', 0, 1, '0', '1']) and (float(
             i) < min_freq_include) and (float(i) > 0.1) for i in x.values])/sum([(i not in [0, '0']) for i in x.values]), axis=0)
         report_samples = pd.DataFrame({'sample': df.iloc[:, 3:].columns, 'uncov_fract': uncovered_samples,
@@ -734,6 +738,16 @@ def revised_df(df, out_dir=False, complex_pos=False, min_freq_include=0.8, min_t
     df = df[df.N > 0]
 
     return df
+
+
+def extract_only_snps(revised_df):
+    df = pd.read_csv(revised_df, sep='\t')
+    # df['ref'] = df['Position'].apply(lambda x: x.split('|')[1])
+    # df['alt'] = df['Position'].apply(lambda x: x.split('|')[3])
+    # df_snps = df[(df['ref'].str.len() == 1) & (df['alt'].str.len() == 1)]
+    df_snps = df[df['Position'].str.split('|', expand=True)[
+        [1, 3]].applymap(len).eq(1).all(axis=1)]
+    return df_snps
 
 
 def recheck_variant_mpileup_intermediate(reference_id, position, alt_snp, sample, previous_binary, variant_folder, min_cov_low_freq=10):
@@ -1385,6 +1399,7 @@ if __name__ == '__main__':
             ".revised_intermediate_vcf.tsv"
         compare_snp_matrix_INDEL_intermediate = full_path_compare + \
             ".revised_INDEL_intermediate.tsv"
+        compare_only_snps = full_path_compare + "_ONLY_SNPs.revised.tsv"
 
         # Create intermediate
 
@@ -1451,9 +1466,18 @@ if __name__ == '__main__':
         recalibrated_revised_INDEL_df.to_csv(
             compare_snp_matrix_recal, sep="\t", index=False)
 
+        if args.only_snp:
+            compare_only_snps_df = extract_only_snps(
+                compare_snp_matrix_recal)
+            compare_only_snps_df.to_csv(
+                compare_only_snps, sep="\t", index=False)
+
         # Matrix to pairwise and mwk
 
         ddtb_compare(compare_snp_matrix_recal, distance=5)
+
+        if args.only_snp:
+            ddtb_compare(compare_only_snps, distance=5)
 
         logger.info("\n\n" + MAGENTA + BOLD + "COMPARING FINISHED IN GROUP: " +
                     group_name + END_FORMATTING + "\n")

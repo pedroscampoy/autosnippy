@@ -76,7 +76,7 @@ def get_arguments():
         'Compare', 'parameters for compare_snp')
 
     compare_group.add_argument('-S', '--only_snp', required=False,
-                               action='store_true', help='Use INDELS while comparing')
+                               action='store_true', help='Create the results only with SNPs, removing INDELs')
     compare_group.add_argument('-w', '--window', required=False,
                                type=int, default=2, help='Number of snps in 10 to discard: default 2')
     compare_group.add_argument('--core', required=False,
