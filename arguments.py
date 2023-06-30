@@ -66,7 +66,7 @@ def get_arguments():
     annot_group.add_argument('-R', '--remove_bed', type=str, default=False,
                              required=False, help='BED file with positions to remove')
     annot_group.add_argument('-P', '--extract_bed', required=False, type=str,
-                        default=False, help='BED file with important positions or genes to annotate')
+                             default=False, help='BED file with important positions or genes to annotate')
     annot_group.add_argument('--mash_database', dest="mash_db", type=str, required=False,
                              default=False, help='MASH ncbi annotation containing species database')
     annot_group.add_argument("--kraken2", dest="kraken2_db", type=str, default=False,
@@ -95,6 +95,8 @@ def get_arguments():
                                type=float, default=0.5, help='min_threshold_discard_all_pos')
     compare_group.add_argument('--min_threshold_discard_all_sample', required=False,
                                type=float, default=0.5, help='min_threshold_discard_all_sample')
+    compare_group.add_argument('-d', '--distance', default=15, required=False,
+                               help='Minimun distance to cluster groups after comparison')
 
     arguments = parser.parse_args()
 

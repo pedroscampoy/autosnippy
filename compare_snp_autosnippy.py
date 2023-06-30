@@ -43,7 +43,7 @@ def get_arguments():
                         type=str, required=False, help='REQUIRED.Input directory containing all vcf files')
     parser.add_argument('-s', '--sample_list', default=False, required=False,
                         help='File with sample names to analyse instead of all samples')
-    parser.add_argument('-d', '--distance', default=0, required=False,
+    parser.add_argument('-d', '--distance', default=15, required=False,
                         help='Minimun distance to cluster groups after comparison')
     parser.add_argument('-c', '--only-compare', dest="only_compare", required=False,
                         default=False, help='Add already calculated snp binary matrix')
@@ -1498,10 +1498,10 @@ if __name__ == '__main__':
 
         # Matrix to pairwise and mwk
 
-        ddtb_compare(compare_snp_matrix_recal, distance=5)
+        ddtb_compare(compare_snp_matrix_recal, distance=args.distance)
 
         if args.only_snp:
-            ddtb_compare(compare_only_snps, distance=5)
+            ddtb_compare(compare_only_snps, distance=args.distance)
 
         # Annotated SNPs from BED file (genes or positions of interest)
 
