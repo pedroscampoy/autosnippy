@@ -21,8 +21,6 @@ def get_arguments():
                              required=False, help='Sample to identify further files')
     input_group.add_argument('-L', '--sample_list', type=str, required=False,
                              help='Sample names to analyse only in the file supplied')
-    input_group.add_argument('-p', '--primers', type=str, default='/home/laura/DATABASES/Anotacion/COVID/primers/nCoV-2019.bed',
-                             required=False, help='Bed file including primers to trim')
 
     quality_group = parser.add_argument_group(
         'Quality parameters', 'parameters for diferent triming conditions')

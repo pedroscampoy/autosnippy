@@ -330,11 +330,13 @@ def extract_snp_count(output_dir, sample):
         df = df.drop_duplicates(subset=['POS', 'REF', 'ALT'], keep="first")
         high_quality_snps = df["POS"][(df.TOTAL_DP >= 20) &
                                       (df.ALT_FREQ >= 0.7) &
-                                      (df.TYPE == 'snp')].tolist()
+                                      (df.TYPE == 'snp') &
+                                      ~(df.OLDVAR.isin(['complex', 'mnp']))].tolist()
         htz_snps = df["POS"][(df.TOTAL_DP >= 20) &
                              (df.ALT_FREQ < 0.7) &
                              (df.ALT_FREQ >= 0.2) &
-                             (df.TYPE == 'snp')].tolist()
+                             (df.TYPE == 'snp') &
+                             ~(df.OLDVAR.isin(['complex', 'mnp']))].tolist()
         indels = df["POS"][(df.TOTAL_DP >= 20) &
                            (df.ALT_FREQ >= 0.7) &
                            ((df.TYPE == 'ins') | (df.TYPE == 'del'))].tolist()
